@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Usuários &mdash; FlashCards Admin</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<nav class="topbar">
+    <div class="wrap">
+        <a href="/" class="topbar-brand">FlashCards</a>
+        <div id="topbar-right" class="topbar-right"></div>
+    </div>
+</nav>
+
+<main class="page-main">
+    <div class="wrap" style="max-width:640px">
+
+        <div id="spinner"><div class="spinner"></div></div>
+        <div id="access-denied" class="empty-state hidden">
+            <h2>Acesso negado</h2>
+            <p>Esta área é restrita a administradores.</p>
+        </div>
+
+        <div id="admin-content" class="hidden">
+            <div class="section-title">Gerenciar Usuários</div>
+
+            <div class="search-row">
+                <input id="search-input" type="search" class="input" placeholder="Buscar por e-mail…">
+                <button id="btn-search" class="btn btn-outline btn-sm">Buscar</button>
+            </div>
+
+            <div id="spinner-search" class="hidden"><div class="spinner" style="width:24px;height:24px;margin:.5rem 0"></div></div>
+            <div id="user-list" class="user-list"></div>
+            <div id="empty-users" class="empty-state hidden">
+                <h2>Nenhum usuário encontrado</h2>
+            </div>
+        </div>
+
+    </div>
+</main>
+
+<script src="/static/js/app.js"></script>
+<script src="/static/js/admin_users.js"></script>
+</body>
+</html>

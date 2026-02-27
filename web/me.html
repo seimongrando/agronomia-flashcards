@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Perfil &mdash; Agronomia Flashcards</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="topbar" role="banner">
+    <div class="wrap">
+        <a href="/" class="topbar-brand" aria-label="Agronomia Flashcards – início">
+            <svg class="brand-icon" width="28" height="28" viewBox="0 0 24 24" fill="none"
+                 xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                <path d="M12 22V12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M12 13C13 10 16 8 19 8C19 11 16.5 13.5 12 13Z" fill="currentColor"/>
+                <path d="M12 17C11 14 8 12 5 12C5 15 7.5 17.5 12 17Z" fill="currentColor" opacity="0.6"/>
+                <path d="M9 22Q12 20.5 15 22" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" fill="none"/>
+            </svg>
+            <span class="brand-name">
+                Agronomia
+                <span class="brand-sub">– Flashcards</span>
+            </span>
+        </a>
+        <div class="topbar-center" aria-hidden="true"></div>
+        <div id="topbar-right" class="topbar-right"></div>
+    </div>
+</header>
+
+<main class="page-main">
+    <div class="wrap">
+        <div id="spinner"><div class="spinner" role="status" aria-label="Carregando…"></div></div>
+
+        <p id="profile-error" class="alert alert-error hidden" role="alert"></p>
+
+        <div id="profile" class="card profile-card hidden"></div>
+    </div>
+</main>
+
+<script src="/static/js/app.js"></script>
+<script src="/static/js/me.js"></script>
+</body>
+</html>

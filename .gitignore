@@ -1,0 +1,25 @@
+bin/
+server
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Environment files — never commit secrets
+.env
+.env.local
+
+# Local Postgres data (created by docker-compose)
+.data/
+
+.idea/
+.vscode/
+*.swp
+*.swo
+
+.DS_Store
+Thumbs.db
+
+*.test
+*.out
+coverage.txt

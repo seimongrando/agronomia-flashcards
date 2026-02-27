@@ -1,0 +1,55 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Agronomia Flashcards — Docker Compose (local development)
+#
+# Services:
+#   postgres  — always started  (make docker-up)
+#   adminer   — optional profile "tools" (make docker-up-tools) on port 8081
+#
+# Usage:
+#   make docker-up           # start Postgres only
+#   make docker-up-tools     # start Postgres + Adminer
+#   make docker-down         # stop everything (keep data)
+#   make docker-reset        # stop + delete all data
+# ═══════════════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── PostgreSQL 16 ────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-webapp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-webapp_dev}
+      POSTGRES_DB:       ${POSTGRES_DB:-webapp}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Persist data between restarts — deleted by `make docker-reset`
+      - ./.data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "pg_isready -U ${POSTGRES_USER:-webapp} -d ${POSTGRES_DB:-webapp}"
+      interval: 3s
+      timeout: 5s
+      retries: 15
+      start_period: 5s
+
+  # ── Adminer (optional) ────────────────────────────────────────────────────
+  # Lightweight web-based DB browser.
+  # Start with: make docker-up-tools  (or: docker compose --profile tools up)
+  # Access at:  http://localhost:8081
+  #             System: PostgreSQL | Server: postgres | User/DB from .env.local
+  adminer:
+    image: adminer:4
+    profiles: [tools]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+    environment:
+      # Pre-select PostgreSQL and the local server so you land on the login form
+      ADMINER_DEFAULT_SERVER: postgres

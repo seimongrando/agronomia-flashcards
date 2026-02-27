@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Estudar &mdash; Agronomia Flashcards</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="topbar" role="banner">
+    <div class="wrap">
+        <a href="/" id="topbar-back" class="topbar-back hidden" aria-label="Voltar aos decks">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Voltar
+        </a>
+        <div class="topbar-center">
+            <span id="study-counter" class="topbar-counter hidden" role="status" aria-live="polite"></span>
+        </div>
+        <div id="topbar-right" class="topbar-right"></div>
+    </div>
+</header>
+
+<main class="study-layout" role="main" id="study-layout">
+
+    <!-- ① Loading spinner -->
+    <div id="study-spinner" class="study-spinner">
+        <div class="spinner" role="status" aria-label="Carregando carta…"></div>
+    </div>
+
+    <!-- ② Done / error state -->
+    <div id="study-done" class="study-done hidden"></div>
+
+    <!-- ③ Card area (shown while studying) -->
+    <div id="card-area" class="card-area hidden">
+
+        <!-- Session progress bar -->
+        <div id="session-progress" class="session-progress">
+            <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-track">
+                <div id="progress-fill" class="progress-fill"></div>
+            </div>
+            <span id="progress-label" class="progress-label" aria-live="polite"></span>
+        </div>
+
+        <!-- Deck context label -->
+        <div id="deck-context" class="deck-context" aria-label="Deck em estudo"></div>
+
+        <!-- Topic filter chips (hidden until topics are loaded) -->
+        <div id="topic-filter" class="topic-filter hidden" role="group" aria-label="Filtrar por tópico"></div>
+
+        <!-- Swipe direction labels (Tinder-style) -->
+        <div id="lbl-wrong" class="swipe-lbl swipe-lbl--wrong" aria-hidden="true">Errei</div>
+        <div id="lbl-right" class="swipe-lbl swipe-lbl--right" aria-hidden="true">Acertei</div>
+        <div id="lbl-hard"  class="swipe-lbl swipe-lbl--hard"  aria-hidden="true">Dif&iacute;cil</div>
+
+        <!-- Card drag wrapper (swipe transform applied here) -->
+        <div id="card-drag" class="card-drag">
+            <!-- Perspective container -->
+            <div class="card-scene" id="card-scene">
+                <!-- 3-D flipper -->
+                <div id="flashcard" class="flashcard"
+                     role="button" tabindex="0"
+                     aria-label="Flashcard. Toque ou pressione espaço para revelar a resposta.">
+
+                    <!-- Front face — question -->
+                    <div class="flashcard-face flashcard-face--front">
+                        <div class="flashcard-fhead" id="head-front"></div>
+                        <div class="flashcard-fbody" id="body-front"></div>
+                        <div class="flashcard-ffoot">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                 aria-hidden="true" style="opacity:.45">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3"
+                                      stroke="currentColor" stroke-width="2"
+                                      stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            toque ou <kbd>espa&ccedil;o</kbd> para revelar
+                        </div>
+                    </div>
+
+                    <!-- Back face — answer -->
+                    <div class="flashcard-face flashcard-face--back">
+                        <div class="flashcard-fhead" id="head-back"></div>
+                        <div class="flashcard-fbody" id="body-back"></div>
+                        <div class="flashcard-ffoot">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                 aria-hidden="true" style="opacity:.45">
+                                <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2"
+                                      stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            toque para voltar &nbsp;&middot;&nbsp; deslize para avaliar
+                        </div>
+                    </div>
+
+                </div><!-- /flashcard -->
+            </div><!-- /card-scene -->
+        </div><!-- /card-drag -->
+
+    </div><!-- /card-area -->
+
+    <!-- ④ Answer bar (pinned at bottom) -->
+    <div id="answer-bar" class="answer-bar hidden"
+         role="group" aria-label="Avalie sua resposta">
+        <button id="btn-wrong" class="answer-btn answer-wrong" disabled
+                aria-label="Errei – tecla 1 ou deslize para a esquerda">
+            <span class="answer-btn__arrow">&#8592;</span>
+            Errei
+            <span class="shortcut" aria-hidden="true">1</span>
+        </button>
+        <button id="btn-hard" class="answer-btn answer-hard" disabled
+                aria-label="Difícil – tecla 2 ou deslize para cima">
+            <span class="answer-btn__arrow">&#8593;</span>
+            Dif&iacute;cil
+            <span class="shortcut" aria-hidden="true">2</span>
+        </button>
+        <button id="btn-right" class="answer-btn answer-right" disabled
+                aria-label="Acertei – tecla 3 ou deslize para a direita">
+            <span class="answer-btn__arrow">&#8594;</span>
+            Acertei
+            <span class="shortcut" aria-hidden="true">3</span>
+        </button>
+    </div>
+
+</main>
+
+<script src="/static/js/app.js"></script>
+<script src="/static/js/study.js"></script>
+</body>
+</html>

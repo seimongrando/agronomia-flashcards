@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Conteúdo &mdash; Agronomia Flashcards</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="topbar" role="banner">
+    <div class="wrap">
+        <a href="/" class="topbar-brand" aria-label="Agronomia Flashcards – início">
+            <svg class="brand-icon" width="26" height="26" viewBox="0 0 24 24" fill="none"
+                 xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                <path d="M12 22V12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M12 13C13 10 16 8 19 8C19 11 16.5 13.5 12 13Z" fill="currentColor"/>
+                <path d="M12 17C11 14 8 12 5 12C5 15 7.5 17.5 12 17Z" fill="currentColor" opacity="0.6"/>
+                <path d="M9 22Q12 20.5 15 22" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" fill="none"/>
+            </svg>
+            <span class="brand-name">
+                Agronomia
+                <span class="brand-sub">– Flashcards</span>
+            </span>
+        </a>
+
+        <div class="topbar-center" aria-hidden="true">Gerenciar Conte&uacute;do</div>
+
+        <div id="topbar-right" class="topbar-right"></div>
+    </div>
+</header>
+
+<main class="page-main" role="main">
+    <div class="wrap" style="max-width:680px">
+
+        <!-- Loading -->
+        <div id="spinner"><div class="spinner" role="status" aria-label="Carregando…"></div></div>
+
+        <!-- Access denied -->
+        <div id="access-denied" class="empty-state hidden" role="alert">
+            <h2>Acesso negado</h2>
+            <p>Esta &aacute;rea &eacute; restrita a professores e administradores.</p>
+        </div>
+
+        <!-- Main teach UI -->
+        <div id="teach-content" class="hidden">
+
+            <div class="page-header">
+                <h1 class="page-title">Gerenciar Conte&uacute;do</h1>
+                <p class="page-subtitle">Crie decks, fa&ccedil;a upload de cards via CSV ou adicione manualmente.</p>
+            </div>
+
+            <!-- ── 1. Deck selector ──────────────────────────────── -->
+            <div class="section">
+                <div class="section-title">Deck ativo</div>
+                <div class="deck-select-row">
+                    <select id="deck-select" class="select" aria-label="Selecionar deck">
+                        <option value="">Selecione um deck…</option>
+                    </select>
+                    <button id="btn-new-deck" class="btn btn-outline btn-sm"
+                            aria-label="Criar novo deck">+ Novo deck</button>
+                </div>
+
+                <div id="new-deck-form" class="hidden mt-1" style="display:none">
+                    <div class="field-row mt-1">
+                        <div class="field">
+                            <input id="new-deck-name" type="text" class="input"
+                                   placeholder="Nome do deck (máx. 80 caracteres)"
+                                   maxlength="80" aria-label="Nome do novo deck">
+                        </div>
+                        <button id="btn-create-deck" class="btn btn-primary btn-sm"
+                                style="align-self:flex-end" aria-label="Confirmar criação">Criar</button>
+                        <button id="btn-cancel-deck" class="btn btn-outline btn-sm"
+                                style="align-self:flex-end" aria-label="Cancelar criação">✕</button>
+                    </div>
+                </div>
+
+                <div id="deck-link" class="hidden mt-1">
+                    <a id="deck-manage-link" href="#" style="font-size:.85rem;color:var(--primary);font-weight:500">
+                        Gerenciar cards deste deck →
+                    </a>
+                </div>
+            </div>
+
+            <!-- ── 2. CSV Import ─────────────────────────────────── -->
+            <div class="section">
+                <div class="collapsible">
+                    <button class="collapsible-toggle" aria-expanded="false" id="csv-toggle">
+                        Importar via CSV
+                        <span class="chevron" aria-hidden="true">▼</span>
+                    </button>
+                    <div id="csv-body" class="collapsible-body hidden">
+                        <div class="card" style="padding:1rem 1.1rem">
+
+                            <!-- CSV format guide -->
+                            <div class="csv-guide">
+                                <p class="csv-guide__title">Formato do arquivo</p>
+                                <p class="csv-guide__text">O CSV deve ter cabeçalho na primeira linha. As colunas <strong>deck</strong>, <strong>type</strong>, <strong>question</strong> e <strong>answer</strong> são obrigatórias. <strong>topic</strong> e <strong>source</strong> são opcionais.</p>
+                                <code class="csv-code">deck,type,question,answer,topic,source</code>
+
+                                <p class="csv-guide__title">Valores válidos para <code>type</code></p>
+                                <div class="csv-types">
+                                    <div class="csv-type-row">
+                                        <span class="badge badge-type" data-type="conceito">conceito</span>
+                                        <span class="csv-type-desc">definição ou teoria — ex: &ldquo;O que é fotossíntese?&rdquo;</span>
+                                    </div>
+                                    <div class="csv-type-row">
+                                        <span class="badge badge-type" data-type="processo">processo</span>
+                                        <span class="csv-type-desc">como fazer — ex: &ldquo;Quais são as etapas da germinação?&rdquo;</span>
+                                    </div>
+                                    <div class="csv-type-row">
+                                        <span class="badge badge-type" data-type="aplicacao">aplicacao</span>
+                                        <span class="csv-type-desc">uso prático — ex: &ldquo;Como aplicar NPK em solo argiloso?&rdquo;</span>
+                                    </div>
+                                    <div class="csv-type-row">
+                                        <span class="badge badge-type" data-type="comparacao">comparacao</span>
+                                        <span class="csv-type-desc">semelhanças/diferenças — ex: &ldquo;Diferença entre adubação orgânica e mineral&rdquo;</span>
+                                    </div>
+                                </div>
+
+                                <p class="csv-guide__title">Exemplo de linhas</p>
+                                <pre class="csv-example">deck,type,question,answer,topic,source
+Fotossíntese,conceito,O que é fotossíntese?,Processo pelo qual plantas convertem luz em energia química.,Biologia Vegetal,Cap. 5
+Fotossíntese,processo,Quais são as fases da fotossíntese?,Fase luminosa (tilacóide) e Ciclo de Calvin (estroma).,Cloroplasto,
+Solo,aplicacao,Como calcular a necessidade de calagem?,Dose = (V2 - V1) × CTC / PRNT × 100,Fertilidade,Apostila UFPR</pre>
+
+                                <p class="csv-guide__note">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:middle;margin-right:.3rem"><path d="M12 16v-4M12 8h.01M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                    Se um deck já está selecionado acima, a coluna <code>deck</code> pode ser omitida — os cards serão adicionados ao deck ativo. Importar a mesma pergunta duas vezes atualiza o card existente (sem duplicatas).
+                                </p>
+                            </div>
+
+                            <hr class="csv-divider">
+
+                            <!-- Template download -->
+                            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
+                                <span class="text-muted">
+                                    Baixe o template, preencha e arraste abaixo.
+                                </span>
+                                <a href="/static/template.csv" download class="btn btn-outline btn-sm"
+                                   aria-label="Baixar template CSV">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                        <path d="M8 2v8M5 7l3 3 3-3M3 13h10" stroke="currentColor"
+                                              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                    template.csv
+                                </a>
+                            </div>
+
+                            <!-- Drop zone -->
+                            <div id="dropzone" class="dropzone"
+                                 role="button" tabindex="0"
+                                 aria-label="Área de upload. Clique ou arraste um arquivo CSV.">
+                                <input type="file" id="csv-file" accept=".csv,text/csv" aria-label="Selecionar arquivo CSV">
+                                <div class="dropzone-icon" aria-hidden="true">
+                                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
+                                         xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 16V8M9 11l3-3 3 3" stroke="currentColor"
+                                              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M3 15v1a4 4 0 0 0 4 4h10a4 4 0 0 0 4-4v-1"
+                                              stroke="currentColor" stroke-width="1.8"
+                                              stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
+                                <p><strong>Clique ou arraste</strong> um arquivo CSV aqui</p>
+                                <p style="font-size:.8rem;margin-top:.25rem">M&aacute;x. 2 MB &middot; 2000 linhas</p>
+                                <p id="file-name" class="hidden mt-1"
+                                   style="font-size:.85rem;font-weight:600;color:var(--primary)"></p>
+                            </div>
+
+                            <!-- Preview area (shown after file selected) -->
+                            <div id="preview-area" class="hidden mt-2">
+                                <div id="preview-stats" class="preview-stats"></div>
+                                <div id="preview-wrap" class="preview-wrap mt-1"></div>
+                                <div id="import-actions" class="mt-2"
+                                     style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+                                    <button id="btn-import" class="btn btn-primary" disabled
+                                            aria-label="Importar cards válidos">Importar</button>
+                                    <span id="import-hint" class="text-muted"></span>
+                                    <button id="btn-clear-file" class="btn btn-outline btn-sm"
+                                            style="margin-left:auto" aria-label="Cancelar upload">Cancelar</button>
+                                </div>
+                                <div id="import-result" class="hidden mt-1" role="status" aria-live="polite"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── 3. Add card manually ──────────────────────────── -->
+            <div class="section">
+                <div class="collapsible">
+                    <button class="collapsible-toggle" aria-expanded="false" id="manual-toggle">
+                        Adicionar card manualmente
+                        <span class="chevron" aria-hidden="true">▼</span>
+                    </button>
+                    <div id="manual-body" class="collapsible-body hidden">
+                        <div style="display:flex;flex-direction:column;gap:.85rem">
+
+                            <!-- Deck context inside the form -->
+                            <div id="manual-deck-ctx" class="manual-deck-ctx">
+                                <div class="manual-deck-ctx__inner" id="manual-deck-inner">
+                                    <!-- populated by teach.js -->
+                                </div>
+                            </div>
+
+                            <!-- Type selector — visual colored buttons -->
+                            <div class="field">
+                                <label>
+                                    Tipo
+                                    <span style="cursor:help;color:var(--text-secondary);margin-left:.3rem;font-weight:400"
+                                          title="Define o tipo de raciocínio exigido do aluno. O badge colorido aparece no flashcard durante o estudo.">ⓘ</span>
+                                </label>
+                                <div class="type-picker" role="group" aria-label="Tipo de card" id="type-picker">
+                                    <label class="type-option" data-type="conceito">
+                                        <input type="radio" name="card-type" value="conceito" checked>
+                                        <span class="type-option__badge" style="background:var(--type-conceito)">Conceito</span>
+                                        <span class="type-option__desc">definição / teoria</span>
+                                    </label>
+                                    <label class="type-option" data-type="processo">
+                                        <input type="radio" name="card-type" value="processo">
+                                        <span class="type-option__badge" style="background:var(--type-processo)">Processo</span>
+                                        <span class="type-option__desc">como fazer</span>
+                                    </label>
+                                    <label class="type-option" data-type="aplicacao">
+                                        <input type="radio" name="card-type" value="aplicacao">
+                                        <span class="type-option__badge" style="background:var(--type-aplicacao)">Aplica&ccedil;&atilde;o</span>
+                                        <span class="type-option__desc">uso pr&aacute;tico</span>
+                                    </label>
+                                    <label class="type-option" data-type="comparacao">
+                                        <input type="radio" name="card-type" value="comparacao">
+                                        <span class="type-option__badge" style="background:var(--type-comparacao)">Compara&ccedil;&atilde;o</span>
+                                        <span class="type-option__desc">semelhan&ccedil;as / diferen&ccedil;as</span>
+                                    </label>
+                                </div>
+                                <span class="field-hint">Mesma cor exibida no badge do flashcard durante o estudo.</span>
+                            </div>
+
+                            <div class="field">
+                                <label for="card-question">Pergunta *</label>
+                                <textarea id="card-question" class="textarea"
+                                          placeholder="Escreva a pergunta ou estímulo…"
+                                          maxlength="500" rows="3"
+                                          aria-required="true"></textarea>
+                                <span class="field-hint">M&aacute;x. 500 caracteres.</span>
+                            </div>
+
+                            <div class="field">
+                                <label for="card-answer">Resposta *</label>
+                                <textarea id="card-answer" class="textarea"
+                                          placeholder="Escreva a resposta completa…"
+                                          maxlength="2000" rows="4"
+                                          aria-required="true"></textarea>
+                                <span class="field-hint">M&aacute;x. 2000 caracteres.</span>
+                            </div>
+
+                            <div class="field-row">
+                                <div class="field">
+                                    <label for="card-topic">T&oacute;pico (opcional)</label>
+                                    <input id="card-topic" type="text" class="input"
+                                           maxlength="80" placeholder="ex: Fotossíntese">
+                                </div>
+                                <div class="field">
+                                    <label for="card-source">Fonte (opcional)</label>
+                                    <input id="card-source" type="text" class="input"
+                                           maxlength="120" placeholder="ex: Livro Cap. 3">
+                                </div>
+                            </div>
+
+                            <div id="card-error" class="alert alert-error hidden" role="alert"></div>
+                            <button id="btn-save-card" class="btn btn-primary"
+                                    aria-label="Salvar card no deck selecionado">Salvar card</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /teach-content -->
+    </div>
+</main>
+
+<script src="/static/js/app.js"></script>
+<script src="/static/js/teach.js"></script>
+</body>
+</html>
