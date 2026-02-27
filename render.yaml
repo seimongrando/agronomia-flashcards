@@ -2,7 +2,7 @@ services:
   - type: web
     name: agronomia-flashcards
     runtime: go
-    plan: starter
+    plan: free
     buildCommand: go build -o server ./cmd/server
     startCommand: ./server
     envVars:
