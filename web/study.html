@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Estudar &mdash; Agronomia Flashcards</title>
+    <meta name="theme-color" content="#2E7D32">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Agro Cards">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -100,9 +107,32 @@
 
     </div><!-- /card-area -->
 
-    <!-- ④ Answer bar (pinned at bottom) -->
+    <!-- ④ Help panel (shown above answer bar when toggled) -->
+    <div id="answer-help" class="answer-help hidden" role="region" aria-label="Como funciona a avaliação">
+        <div class="answer-help__title">Como funciona a repetição espaçada</div>
+        <div class="answer-help__row">
+            <span class="answer-help__key answer-help__key--wrong">&#8592;</span>
+            <span class="answer-help__name">Errei</span>
+            <span class="answer-help__desc">card volta em 1 dia (intervalo reinicia)</span>
+        </div>
+        <div class="answer-help__row">
+            <span class="answer-help__key answer-help__key--hard">&#8593;</span>
+            <span class="answer-help__name">Dif&iacute;cil</span>
+            <span class="answer-help__desc">intervalo cresce 20% (ritmo mais lento)</span>
+        </div>
+        <div class="answer-help__row">
+            <span class="answer-help__key answer-help__key--right">&#8594;</span>
+            <span class="answer-help__name">Acertei</span>
+            <span class="answer-help__desc">intervalo cresce pelo fator de facilidade</span>
+        </div>
+    </div>
+
+    <!-- ⑤ Answer bar (pinned at bottom) -->
     <div id="answer-bar" class="answer-bar hidden"
          role="group" aria-label="Avalie sua resposta">
+        <button id="btn-help-toggle" class="answer-help-toggle"
+                aria-controls="answer-help" aria-expanded="false"
+                title="Como funciona a avaliação">?</button>
         <button id="btn-wrong" class="answer-btn answer-wrong" disabled
                 aria-label="Errei – tecla 1 ou deslize para a esquerda">
             <span class="answer-btn__arrow">&#8592;</span>

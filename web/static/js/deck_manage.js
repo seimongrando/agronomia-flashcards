@@ -14,9 +14,12 @@
     var searchInput  = document.getElementById("search-input");
     var cardListEl   = document.getElementById("card-list");
     var emptyEl      = document.getElementById("empty-cards");
+    var deleteZoneEl = document.getElementById("delete-zone");
+    var btnDeleteDeck = document.getElementById("btn-delete-deck");
     var paginationEl = document.getElementById("pagination");
 
     var deckStatusBadge    = document.getElementById("deck-status-badge");
+    var btnExportCSV       = document.getElementById("btn-export-csv");
     var btnRenameDeck      = document.getElementById("btn-rename-deck");
     var renameForm         = document.getElementById("rename-form");
     var renameNameEl       = document.getElementById("rename-name");
@@ -64,6 +67,20 @@
     var filtered    = [];
     var currentPage = 1;
     var editingID   = null;
+    var currentUserID = null;
+    var isAdmin       = false;
+    var canEdit       = false; // set after deck loads
+
+    function applyReadOnly() {
+        // Hide all mutating controls when professor doesn't own the deck
+        var hide = [btnRenameDeck, btnDeleteDeck, deleteZoneEl];
+        hide.forEach(function (el) { if (el) el.style.display = "none"; });
+        var notice = document.createElement("div");
+        notice.className = "alert";
+        notice.style.cssText = "background:#FFF3E0;border-color:#FFCC80;color:#E65100;margin-bottom:1rem";
+        notice.textContent = "Este deck pertence a outro professor. Você pode visualizar os cards, mas não pode editá-los ou excluí-los.";
+        if (deckContent) deckContent.insertBefore(notice, deckContent.firstChild);
+    }
 
     /* ── Init ────────────────────────────────────── */
     function init() {
@@ -78,6 +95,8 @@
             var roles = user.roles || [];
             var ok = roles.indexOf("professor") >= 0 || roles.indexOf("admin") >= 0;
             if (!ok) { window.location.href = "/"; return; }
+            isAdmin = roles.indexOf("admin") >= 0;
+            currentUserID = user.user ? user.user.id : null;
             app.renderTopbar(user, { noNav: true });
             loadCards();
         });
@@ -100,6 +119,14 @@
                 if (deck) {
                     currentDeck = deck;
                     renderStatusBadge(deck);
+                    // Ownership: admins can edit any deck; professors only their own
+                    canEdit = isAdmin || (deck.created_by && deck.created_by === currentUserID);
+                    if (!canEdit) { applyReadOnly(); }
+                }
+
+                // Wire CSV export button
+                if (btnExportCSV) {
+                    btnExportCSV.href = '/api/content/decks/' + deckId + '/export.csv';
                 }
 
                 // Defensively handle both {items:[]} and unexpected shapes.
@@ -155,10 +182,16 @@
         if (total === 0) {
             cardListEl.innerHTML = "";
             emptyEl.classList.remove("hidden");
+            // Show delete option only when deck truly has no cards (not just search filter)
+            if (deleteZoneEl) {
+                var noCards = allCards.length === 0;
+                deleteZoneEl.classList.toggle("hidden", !noCards);
+            }
             paginationEl.innerHTML = "";
             return;
         }
         emptyEl.classList.add("hidden");
+        if (deleteZoneEl) deleteZoneEl.classList.add("hidden");
 
         var html = "";
         for (var i = 0; i < slice.length; i++) {
@@ -190,8 +223,10 @@
                 '</div>' +
             '</div>' +
             '<div class="card-item-actions">' +
-                '<button class="btn btn-outline btn-sm btn-edit" data-id="' + app.esc(c.id) + '"' +
-                    ' aria-label="Editar card">Editar</button>' +
+                (canEdit
+                    ? '<button class="btn btn-outline btn-sm btn-edit" data-id="' + app.esc(c.id) + '"' +
+                      ' aria-label="Editar card">Editar</button>'
+                    : '') +
             '</div>' +
         '</div>';
     }
@@ -444,6 +479,26 @@
         })
         .finally(function () { btnRenameSave.disabled = false; });
     });
+
+    /* ── Delete deck ─────────────────────────────── */
+    if (btnDeleteDeck) {
+        btnDeleteDeck.addEventListener("click", function () {
+            if (!confirm('Tem certeza que deseja excluir o deck "' + (deckName || "este deck") + '"?\nEsta ação não pode ser desfeita.')) return;
+            btnDeleteDeck.disabled = true;
+            btnDeleteDeck.textContent = "Excluindo…";
+            api.del("/api/content/decks/" + deckId)
+                .then(function (res) {
+                    if (!res.ok) return res.json().then(function (e) { throw new Error(e.detail || "erro"); });
+                    toast("Deck excluído com sucesso!", "ok");
+                    setTimeout(function () { window.location.href = "/teach.html"; }, 800);
+                })
+                .catch(function (err) {
+                    toast(err.message || "Erro ao excluir deck.", "error");
+                    btnDeleteDeck.disabled = false;
+                    btnDeleteDeck.textContent = "Excluir deck";
+                });
+        });
+    }
 
     /* ── Status badge ────────────────────────────── */
     function renderStatusBadge(deck) {

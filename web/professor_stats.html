@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Professor &mdash; Agronomia Flashcards</title>
+    <meta name="theme-color" content="#2E7D32">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Agro Cards">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="topbar" role="banner">
+    <div class="wrap">
+        <a href="/" class="topbar-brand" aria-label="Agronomia Flashcards – início">
+            <svg class="brand-icon" width="26" height="26" viewBox="0 0 24 24" fill="none"
+                 xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                <path d="M12 22V12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M12 13C13 10 16 8 19 8C19 11 16.5 13.5 12 13Z" fill="currentColor"/>
+                <path d="M12 17C11 14 8 12 5 12C5 15 7.5 17.5 12 17Z" fill="currentColor" opacity="0.6"/>
+                <path d="M9 22Q12 20.5 15 22" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" fill="none"/>
+            </svg>
+            <span class="brand-name">Agronomia<span class="brand-sub"> – Flashcards</span></span>
+        </a>
+        <div class="topbar-center" aria-hidden="true">Painel do Professor</div>
+        <div id="topbar-right" class="topbar-right"></div>
+    </div>
+</header>
+
+<main class="page-main" role="main">
+    <div class="wrap" style="max-width:900px">
+
+        <div id="spinner"><div class="spinner" role="status" aria-label="Carregando…"></div></div>
+
+        <div id="stats-content" class="hidden">
+
+            <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
+                <div>
+                    <h1 class="page-title">Painel do Professor</h1>
+                    <p class="page-subtitle">Visão geral pedagógica &mdash; dados agregados, sem identificação de alunos.</p>
+                </div>
+                <a href="/teach.html" class="btn btn-sm btn-outline">← Gerenciar Conteúdo</a>
+            </div>
+
+            <!-- ── Overview cards ────────────────────────────────────── -->
+            <div class="prog-grid" role="list" aria-label="Visão geral" id="overview-grid"></div>
+
+            <!-- ── Per-deck table ────────────────────────────────────── -->
+            <div class="section">
+                <div class="section-title">Engajamento por Deck</div>
+                <div class="table-wrap">
+                    <table class="prog-table" aria-label="Engajamento por deck">
+                        <thead>
+                            <tr>
+                                <th>Deck</th>
+                                <th>Matéria</th>
+                                <th>Status</th>
+                                <th class="num">Cartas</th>
+                                <th class="num">Alunos</th>
+                                <th class="num">Revisões</th>
+                                <th class="num">Precisão</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="deck-tbody"></tbody>
+                    </table>
+                </div>
+                <p id="no-decks-msg" class="text-muted hidden" style="padding:.75rem 0">
+                    Nenhum deck criado ainda. <a href="/teach.html">Criar deck →</a>
+                </p>
+            </div>
+
+            <!-- ── Hardest cards ─────────────────────────────────────── -->
+            <div class="section" id="hard-section">
+                <div class="section-title">🎯 10 Cartas Mais Difíceis</div>
+                <p class="text-muted" style="margin-bottom:.75rem;font-size:.85rem">
+                    Cartas com menor precisão entre alunos (mínimo 5 revisões).
+                </p>
+                <div id="hard-cards-list"></div>
+                <p id="no-hard-msg" class="text-muted hidden" style="padding:.5rem 0;font-size:.9rem">
+                    Dados insuficientes ainda — cada carta precisa de ao menos 5 revisões.
+                </p>
+            </div>
+
+        </div><!-- /stats-content -->
+    </div>
+</main>
+
+<script src="/static/js/app.js"></script>
+<script src="/static/js/professor_stats.js"></script>
+</body>
+</html>

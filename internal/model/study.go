@@ -10,6 +10,7 @@ type DeckWithCounts struct {
 	IsActive    bool       `json:"is_active"`
 	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
+	CreatedBy   *string    `json:"created_by,omitempty"` // exposed to staff for UI ownership checks
 	TotalCards  int        `json:"total_cards"`
 	DueNow      int        `json:"due_now"`
 	LastStudied *time.Time `json:"last_studied,omitempty"`

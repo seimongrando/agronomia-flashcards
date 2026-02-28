@@ -104,6 +104,7 @@ func main() {
 	mux.Handle("GET /api/progress", authOnly(http.HandlerFunc(studyH.Progress)))
 
 	// Content management: professor or admin
+	mux.Handle("GET /api/content/decks", contentMgmt(http.HandlerFunc(studyH.ListDecksForManagement)))
 	mux.Handle("GET /api/content/cards", contentMgmt(http.HandlerFunc(contentH.ListCards)))
 	mux.Handle("GET /api/content/cards/{id}", contentMgmt(http.HandlerFunc(contentH.GetCardDetail)))
 	mux.Handle("POST /api/content/decks", contentMgmt(http.HandlerFunc(contentH.CreateDeck)))
@@ -115,18 +116,34 @@ func main() {
 	mux.Handle("PUT /api/content/cards/{id}", contentMgmt(http.HandlerFunc(contentH.UpdateCard)))
 	mux.Handle("DELETE /api/content/cards/{id}", contentMgmt(http.HandlerFunc(contentH.DeleteCard)))
 	mux.Handle("POST /api/content/upload-csv", contentMgmt(http.HandlerFunc(contentH.UploadCSV)))
+	mux.Handle("GET /api/content/decks/{id}/export.csv", contentMgmt(http.HandlerFunc(contentH.ExportDeckCSV)))
+
+	// Professor / admin stats (no individual student data — aggregates only)
+	mux.Handle("GET /api/admin/stats", contentMgmt(http.HandlerFunc(studyH.ProfessorStats)))
 
 	// Admin only
 	mux.Handle("GET /api/admin/users", adminOnly(http.HandlerFunc(adminH.ListUsers)))
 	mux.Handle("POST /api/admin/users/{id}/roles", adminOnly(http.HandlerFunc(adminH.SetRoles)))
 
-	// Static assets
+	// Static assets + HTML pages (wildcard catch-all via embed.go *.html)
 	staticFS, err := fs.Sub(web.Content, "static")
 	if err != nil {
 		logger.Error("failed to load embedded assets", "error", err)
 		os.Exit(1)
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
+	// Service worker must be served from root scope
+	mux.HandleFunc("GET /sw.js", func(w http.ResponseWriter, r *http.Request) {
+		data, err := web.Content.ReadFile("static/sw.js")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		w.Header().Set("Service-Worker-Allowed", "/")
+		w.Header().Set("Cache-Control", "no-cache")
+		_, _ = w.Write(data)
+	})
 	mux.HandleFunc("GET /{$}", serveHTML("index.html"))
 	mux.HandleFunc("GET /study.html", serveHTML("study.html"))
 	mux.HandleFunc("GET /me.html", serveHTML("me.html"))
@@ -134,6 +151,7 @@ func main() {
 	mux.HandleFunc("GET /teach.html", serveHTML("teach.html"))
 	mux.HandleFunc("GET /deck_manage.html", serveHTML("deck_manage.html"))
 	mux.HandleFunc("GET /admin_users.html", serveHTML("admin_users.html"))
+	mux.HandleFunc("GET /professor_stats.html", serveHTML("professor_stats.html"))
 
 	// Global middleware stack
 	isDev := cfg.Environment != "production"

@@ -14,8 +14,11 @@
     var subjectDatalist = document.getElementById("subject-suggestions");
     var btnCreate       = document.getElementById("btn-create-deck");
     var btnCancel       = document.getElementById("btn-cancel-deck");
-    var deckLink     = document.getElementById("deck-link");
-    var deckManageLink = document.getElementById("deck-manage-link");
+    var deckPickerGrid  = document.getElementById("deck-picker-grid");
+    var deckEmptyMsg    = document.getElementById("deck-empty-msg");
+    var activeDeckBar   = document.getElementById("active-deck-bar");
+    var activeDeckInfo  = document.getElementById("active-deck-info");
+    var deckManageLink  = document.getElementById("deck-manage-link");
 
     var dropzone     = document.getElementById("dropzone");
     var fileInput    = document.getElementById("csv-file");
@@ -28,8 +31,10 @@
     var btnClear     = document.getElementById("btn-clear-file");
     var importResult = document.getElementById("import-result");
 
-    var csvToggle     = document.getElementById("csv-toggle");
-    var csvBody       = document.getElementById("csv-body");
+    var csvToggle      = document.getElementById("csv-toggle");
+    var csvBody        = document.getElementById("csv-body");
+    var csvGuideToggle = document.getElementById("csv-guide-toggle");
+    var csvGuideBody   = document.getElementById("csv-guide-body");
 
     var manualToggle  = document.getElementById("manual-toggle");
     var manualBody    = document.getElementById("manual-body");
@@ -52,26 +57,24 @@
     function updateManualDeckCtx() {
         if (!manualDeckInner) return;
         if (currentDeckID) {
-            var name = deckSelect.options[deckSelect.selectedIndex].text;
             manualDeckInner.className = "manual-deck-ctx--ok";
             manualDeckInner.innerHTML =
                 '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color:var(--green-800);flex-shrink:0">' +
                 '<path d="M5 12l4 4L19 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-                'Deck ativo: <strong>' + app.esc(name) + '</strong>';
+                'Deck ativo: <strong>' + app.esc(currentDeckName) + '</strong>';
         } else {
             manualDeckInner.className = "manual-deck-ctx--warn";
             manualDeckInner.innerHTML =
                 '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color:#F9A825;flex-shrink:0;margin-top:.1rem">' +
                 '<path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
                 '<p>Nenhum deck selecionado. ' +
-                '<a href="#deck-select" id="link-goto-deck" style="color:var(--primary);font-weight:600">Selecione ou crie um deck</a> ' +
+                '<a href="#deck-picker-grid" id="link-goto-deck" style="color:var(--primary);font-weight:600">Selecione ou crie um deck</a> ' +
                 'antes de salvar o card.</p>';
             var linkGoto = document.getElementById("link-goto-deck");
             if (linkGoto) {
                 linkGoto.addEventListener("click", function (e) {
                     e.preventDefault();
-                    deckSelect.focus();
-                    deckSelect.scrollIntoView({ behavior: "smooth", block: "center" });
+                    if (deckPickerGrid) deckPickerGrid.scrollIntoView({ behavior: "smooth", block: "center" });
                 });
             }
         }
@@ -80,6 +83,16 @@
     var currentFile      = null;
     var previewResult    = null;
     var currentDeckID    = null;
+    var currentDeckName  = "";
+    var allDecks         = [];
+    var currentUserID    = null;  // populated on init from /api/me
+    var isAdmin          = false; // admins bypass ownership checks
+
+    /* ── Helpers ─────────────────────────────────── */
+    function canEditDeck(deck) {
+        if (isAdmin) return true;
+        return deck.created_by && deck.created_by === currentUserID;
+    }
 
     /* ── Init ────────────────────────────────────── */
     function init() {
@@ -94,6 +107,8 @@
                 deniedEl.classList.remove("hidden");
                 return;
             }
+            isAdmin = roles.indexOf("admin") >= 0;
+            currentUserID = user.user ? user.user.id : null;
             app.renderTopbar(user);
             contentEl.classList.remove("hidden");
             loadDecks();
@@ -102,59 +117,136 @@
 
     /* ── Decks ───────────────────────────────────── */
     function loadDecks() {
-        api.get("/api/decks").then(function (res) {
+        api.get("/api/content/decks").then(function (res) {
             if (!res.ok) return;
             return res.json();
         }).then(function (page) {
-            var decks = (page && page.items) ? page.items : (page || []);
-            var subjects = {};
-            for (var i = 0; i < decks.length; i++) {
-                var d = decks[i];
-                var opt = document.createElement("option");
-                opt.value = d.id;
-                var label = d.name;
-                if (d.subject) label += " [" + d.subject + "]";
-                var isExpired = d.expires_at && new Date(d.expires_at) <= new Date();
-                if (!d.is_active) label += " — Inativo";
-                else if (isExpired)  label += " — Expirado";
-                opt.textContent = label;
-                deckSelect.appendChild(opt);
-                if (d.subject) subjects[d.subject] = true;
-            }
-            // Populate autocomplete datalist
-            if (subjectDatalist) {
-                Object.keys(subjects).sort().forEach(function (s) {
-                    var o = document.createElement("option");
-                    o.value = s;
-                    subjectDatalist.appendChild(o);
-                });
-            }
+            allDecks = (page && page.items) ? page.items : (page || []);
+            renderDeckGrid(allDecks);
         });
     }
 
-    deckSelect.addEventListener("change", function () {
-        currentDeckID = deckSelect.value || null;
-        if (currentDeckID) {
-            var selectedName = deckSelect.options[deckSelect.selectedIndex].text;
-            deckManageLink.href = "/deck_manage.html?deckId=" + currentDeckID +
-                "&deckName=" + encodeURIComponent(selectedName);
-            deckLink.classList.remove("hidden");
-        } else {
-            deckLink.classList.add("hidden");
+    function renderDeckGrid(decks) {
+        if (!deckPickerGrid) return;
+
+        // Rebuild hidden select (needed for CSV upload URL)
+        while (deckSelect.options.length > 1) deckSelect.remove(1);
+        var subjects = {};
+        for (var i = 0; i < decks.length; i++) {
+            var d = decks[i];
+            var opt = document.createElement("option");
+            opt.value = d.id;
+            opt.textContent = d.name;
+            deckSelect.appendChild(opt);
+            if (d.subject) subjects[d.subject] = true;
         }
+        // Populate autocomplete datalist
+        if (subjectDatalist) {
+            subjectDatalist.innerHTML = "";
+            Object.keys(subjects).sort().forEach(function (s) {
+                var o = document.createElement("option");
+                o.value = s;
+                subjectDatalist.appendChild(o);
+            });
+        }
+
+        if (decks.length === 0) {
+            deckPickerGrid.innerHTML = "";
+            if (deckEmptyMsg) deckEmptyMsg.classList.remove("hidden");
+            return;
+        }
+        if (deckEmptyMsg) deckEmptyMsg.classList.add("hidden");
+
+        var now = new Date();
+        deckPickerGrid.innerHTML = decks.map(function (d) {
+            var isExpired = d.expires_at && new Date(d.expires_at) <= now;
+            var active    = d.is_active && !isExpired;
+            var statusTag = active
+                ? '<span class="badge badge-green" style="font-size:.72rem">Ativo</span>'
+                : (isExpired
+                    ? '<span class="badge badge-expired" style="font-size:.72rem">Expirado</span>'
+                    : '<span class="badge badge-inactive" style="font-size:.72rem">Inativo</span>');
+
+            var owned      = canEditDeck(d);
+            var isSelected = d.id === currentDeckID;
+            var selectedCls = isSelected ? " deck-picker-card--selected" : "";
+            // Non-owner decks are shown read-only with a visual indicator
+            var readOnlyCls = !owned ? " deck-picker-card--readonly" : "";
+
+            var ownerTag = !owned
+                ? '<span class="badge" style="font-size:.68rem;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80" title="Você pode visualizar mas não editar este deck">somente leitura</span>'
+                : '<span class="badge" style="font-size:.68rem;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">seu deck</span>';
+
+            return '<div class="deck-picker-card' + selectedCls + readOnlyCls + '" role="listitem" data-id="' + d.id + '" data-name="' + app.esc(d.name) + '" data-owned="' + (owned ? '1' : '0') + '" tabindex="0" aria-pressed="' + isSelected + '">' +
+                '<div class="deck-picker-card__head">' +
+                    '<span class="deck-picker-card__name">' + app.esc(d.name) + '</span>' +
+                    '<div style="display:flex;gap:.3rem;flex-wrap:wrap">' + statusTag + ownerTag + '</div>' +
+                '</div>' +
+                (d.subject ? '<div class="deck-picker-card__sub">' + app.esc(d.subject) + '</div>' : '') +
+                '<div class="deck-picker-card__count">' + (d.total_cards || 0) + ' carta' + (d.total_cards !== 1 ? 's' : '') + '</div>' +
+            '</div>';
+        }).join('');
+
+        // Click handler for each card
+        deckPickerGrid.querySelectorAll('.deck-picker-card').forEach(function (el) {
+            el.addEventListener('click', function () { selectDeck(el.dataset.id, el.dataset.name, el.dataset.owned === '1'); });
+            el.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectDeck(el.dataset.id, el.dataset.name, el.dataset.owned === '1'); }
+            });
+        });
+    }
+
+    function selectDeck(id, name, owned) {
+        // If owned not explicitly supplied, derive it from the loaded deck list.
+        if (owned === undefined) {
+            var found = allDecks.filter(function (d) { return d.id === id; })[0];
+            owned = found ? canEditDeck(found) : false;
+        }
+        currentDeckID   = id;
+        currentDeckName = name;
+        deckSelect.value = id;
+
+        // Visual selection state
+        deckPickerGrid.querySelectorAll('.deck-picker-card').forEach(function (el) {
+            var selected = el.dataset.id === id;
+            el.classList.toggle('deck-picker-card--selected', selected);
+            el.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        });
+
+        // Active deck bar — show manage link only if professor owns the deck (or is admin)
+        if (activeDeckBar && activeDeckInfo && deckManageLink) {
+            var icon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color:var(--green-800)">' +
+                '<path d="M5 12l4 4L19 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            activeDeckInfo.innerHTML = icon + ' Deck selecionado: <strong>' + app.esc(name) + '</strong>';
+
+            if (owned) {
+                deckManageLink.href = "/deck_manage.html?deckId=" + id + "&deckName=" + encodeURIComponent(name);
+                deckManageLink.style.display = "";
+            } else {
+                deckManageLink.style.display = "none";
+            }
+            activeDeckBar.classList.remove("hidden");
+        }
+
+        // Disable manual card form for non-owned decks
+        if (btnSave) {
+            btnSave.disabled = !owned;
+            btnSave.title = owned ? "" : "Você não pode adicionar cards a um deck de outro professor";
+        }
+
         updateManualDeckCtx();
         clearPreview();
-    });
+    }
 
     btnNewDeck.addEventListener("click", function () {
-        newDeckForm.style.display = "";
-        newDeckForm.classList.remove("hidden");
-        newDeckName.focus();
+        newDeckForm.classList.toggle("hidden");
+        if (!newDeckForm.classList.contains("hidden")) newDeckName.focus();
     });
 
     btnCancel.addEventListener("click", function () {
         newDeckForm.classList.add("hidden");
         newDeckName.value = "";
+        if (newDeckSubject) newDeckSubject.value = "";
     });
 
     btnCreate.addEventListener("click", createDeck);
@@ -162,34 +254,34 @@
 
     function createDeck() {
         var name = newDeckName.value.trim();
-        if (!name) return;
+        if (!name) { newDeckName.focus(); return; }
         var subject = (newDeckSubject && newDeckSubject.value.trim()) || null;
         btnCreate.disabled = true;
         api.post("/api/content/decks", { name: name, subject: subject })
-            .then(function (res) { return res.json(); })
+            .then(function (res) {
+                if (res.status === 409) {
+                    toast("Já existe um deck com este nome. Escolha outro nome.", "error");
+                    btnCreate.disabled = false;
+                    return null;
+                }
+                return res.json();
+            })
             .then(function (deck) {
-                if (!deck.id) throw new Error("no id");
-                var opt = document.createElement("option");
-                opt.value = deck.id;
-                opt.textContent = deck.name + (deck.subject ? " [" + deck.subject + "]" : "");
-                deckSelect.appendChild(opt);
-                deckSelect.value = deck.id;
-                deckSelect.dispatchEvent(new Event("change"));
+                if (!deck || !deck.id) return;
+                // Add to allDecks and re-render — include created_by so ownership resolves correctly
+                allDecks.unshift({
+                    id: deck.id,
+                    name: deck.name,
+                    subject: deck.subject,
+                    is_active: true,
+                    total_cards: 0,
+                    created_by: currentUserID  // professor who just created it always owns it
+                });
+                renderDeckGrid(allDecks);
+                selectDeck(deck.id, deck.name); // owned will be derived from allDecks above
                 newDeckForm.classList.add("hidden");
                 newDeckName.value = "";
                 if (newDeckSubject) newDeckSubject.value = "";
-                // add new subject to autocomplete if not already there
-                if (subject && subjectDatalist) {
-                    var exists = false;
-                    for (var i = 0; i < subjectDatalist.options.length; i++) {
-                        if (subjectDatalist.options[i].value === subject) { exists = true; break; }
-                    }
-                    if (!exists) {
-                        var o = document.createElement("option");
-                        o.value = subject;
-                        subjectDatalist.appendChild(o);
-                    }
-                }
                 toast("Deck criado!", "ok");
             })
             .catch(function () { toast("Erro ao criar deck", "error"); })
@@ -331,22 +423,12 @@
     }
 
     function reloadDecks() {
-        var prev = deckSelect.value;
-        while (deckSelect.options.length > 1) deckSelect.remove(1);
-        api.get("/api/decks").then(function (res) { return res.json(); }).then(function (page) {
-            var decks = (page && page.items) ? page.items : (page || []);
-            for (var i = 0; i < decks.length; i++) {
-                var d = decks[i];
-                var opt = document.createElement("option");
-                opt.value = d.id;
-                var label = d.subject ? d.name + " [" + d.subject + "]" : d.name;
-                var isExpired = d.expires_at && new Date(d.expires_at) <= new Date();
-                if (!d.is_active)   label += " — Inativo";
-                else if (isExpired) label += " — Expirado";
-                opt.textContent = label;
-                deckSelect.appendChild(opt);
-            }
-            if (prev) { deckSelect.value = prev; deckSelect.dispatchEvent(new Event("change")); }
+        var prevID = currentDeckID;
+        var prevName = currentDeckName;
+        api.get("/api/content/decks").then(function (res) { return res.json(); }).then(function (page) {
+            allDecks = (page && page.items) ? page.items : (page || []);
+            renderDeckGrid(allDecks);
+            if (prevID) selectDeck(prevID, prevName);
         });
     }
 
@@ -354,12 +436,18 @@
     csvToggle.addEventListener("click", function () {
         var open = csvToggle.getAttribute("aria-expanded") === "true";
         csvToggle.setAttribute("aria-expanded", open ? "false" : "true");
-        if (open) {
-            csvBody.classList.add("hidden");
-        } else {
-            csvBody.classList.remove("hidden");
-        }
+        csvBody.classList.toggle("hidden", open);
     });
+
+    /* ── CSV format guide sub-toggle ────────────── */
+    if (csvGuideToggle && csvGuideBody) {
+        csvGuideToggle.addEventListener("click", function () {
+            var open = csvGuideToggle.getAttribute("aria-expanded") === "true";
+            csvGuideToggle.setAttribute("aria-expanded", open ? "false" : "true");
+            csvGuideBody.classList.toggle("hidden", open);
+            csvGuideToggle.textContent = open ? "Ver formato e exemplos ▾" : "Ocultar formato ▴";
+        });
+    }
 
     /* ── Collapsible manual form ─────────────────── */
     manualToggle.addEventListener("click", function () {
@@ -376,18 +464,17 @@
     btnSave.addEventListener("click", saveCard);
 
     function saveCard() {
-        var deckID = deckSelect.value;
+        var deckID = currentDeckID;
         if (!deckID) {
             cardError.innerHTML =
                 'Nenhum deck selecionado. ' +
-                '<a href="#deck-select" style="color:var(--danger);font-weight:600;text-decoration:underline" id="err-deck-link">Selecione ou crie um deck</a> acima.';
+                '<a href="#deck-picker-grid" style="color:var(--danger);font-weight:600;text-decoration:underline" id="err-deck-link">Selecione ou crie um deck</a> acima.';
             cardError.classList.remove("hidden");
             var errLink = document.getElementById("err-deck-link");
             if (errLink) {
                 errLink.addEventListener("click", function (e) {
                     e.preventDefault();
-                    deckSelect.focus();
-                    deckSelect.scrollIntoView({ behavior: "smooth", block: "center" });
+                    if (deckPickerGrid) deckPickerGrid.scrollIntoView({ behavior: "smooth", block: "center" });
                 });
             }
             return;
@@ -425,7 +512,11 @@
                 cardError.textContent = err.message || "Erro ao salvar card.";
                 cardError.classList.remove("hidden");
             })
-            .finally(function () { btnSave.disabled = false; });
+            .finally(function () {
+                // Re-enable only if the current deck is still owned by this professor
+                var activeDeck = allDecks.filter(function (d) { return d.id === currentDeckID; })[0];
+                btnSave.disabled = activeDeck ? !canEditDeck(activeDeck) : true;
+            });
     }
 
     /* ── Helpers ─────────────────────────────────── */

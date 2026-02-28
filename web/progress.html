@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meu Progresso &mdash; Agronomia Flashcards</title>
+    <meta name="theme-color" content="#2E7D32">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Agro Cards">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -38,6 +45,9 @@
                 <p class="page-subtitle">Acompanhe sua evolu&ccedil;&atilde;o e identifique pontos de melhoria.</p>
             </div>
 
+            <!-- ── Streak banner ───────────────────────────────────── -->
+            <div id="streak-banner" class="streak-banner hidden" aria-live="polite"></div>
+
             <!-- ── Summary stats ─────────────────────────────────── -->
             <div class="prog-grid" role="list" aria-label="Resumo">
                 <div class="prog-stat" role="listitem">
@@ -59,6 +69,16 @@
                     <span class="prog-stat__value" id="stat-days">–</span>
                     <span class="prog-stat__label">Dias ativos</span>
                     <span class="prog-stat__sub">com estudo</span>
+                </div>
+                <div class="prog-stat prog-stat--streak" role="listitem">
+                    <span class="prog-stat__value" id="stat-streak">–</span>
+                    <span class="prog-stat__label">Sequência</span>
+                    <span class="prog-stat__sub">dias consecutivos</span>
+                </div>
+                <div class="prog-stat" role="listitem">
+                    <span class="prog-stat__value" id="stat-longest">–</span>
+                    <span class="prog-stat__label">Recorde</span>
+                    <span class="prog-stat__sub">maior sequência</span>
                 </div>
             </div>
 
@@ -87,6 +107,8 @@
                                 <th class="num">Dominadas</th>
                                 <th class="num">Aprendendo</th>
                                 <th class="num">Vencidas</th>
+                                <th class="num">Difíceis</th>
+                                <th class="num">Erros</th>
                             </tr>
                         </thead>
                         <tbody id="deck-table-body"></tbody>

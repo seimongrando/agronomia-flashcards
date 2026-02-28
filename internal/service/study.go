@@ -111,8 +111,9 @@ func NewStudyService(study *repository.StudyRepo, cards *repository.CardRepo, re
 	return &StudyService{study: study, cards: cards, reviews: reviews}
 }
 
-// ListDecks returns a paginated page of decks ordered by (name ASC).
-// showAll=true includes inactive/expired decks (professor/admin view).
+// ListDecks returns a paginated page of decks for the home page.
+// Empty decks are always hidden. Inactive/expired decks are hidden for students
+// but visible for professors and admins (showAll=true).
 func (s *StudyService) ListDecks(
 	ctx context.Context,
 	userID, cursorName, cursorID string,
@@ -124,7 +125,46 @@ func (s *StudyService) ListDecks(
 		CursorName: cursorName,
 		CursorID:   cursorID,
 		ShowAll:    showAll,
-		Limit:      limit + 1, // one extra to detect next page
+		HideEmpty:  true, // home page never shows empty decks regardless of role
+		Limit:      limit + 1,
+	})
+	if err != nil {
+		return pagination.Page[model.DeckWithCounts]{}, err
+	}
+
+	var nextCursor *string
+	if len(decks) > limit {
+		decks = decks[:limit]
+		last := decks[len(decks)-1]
+		c := pagination.EncodeNameIDCursor(last.Name, last.ID)
+		nextCursor = &c
+	}
+
+	if decks == nil {
+		decks = []model.DeckWithCounts{}
+	}
+
+	return pagination.Page[model.DeckWithCounts]{
+		Items:      decks,
+		NextCursor: nextCursor,
+	}, nil
+}
+
+// ListDecksForManagement returns all decks (including empty and inactive ones)
+// for professor/admin management views. Unlike ListDecks, it never hides empty
+// decks so professors can see and populate newly created decks.
+func (s *StudyService) ListDecksForManagement(
+	ctx context.Context,
+	userID, cursorName, cursorID string,
+	limit int,
+) (pagination.Page[model.DeckWithCounts], error) {
+	decks, err := s.study.ListDecksWithCountsPaged(ctx, repository.DeckListParams{
+		UserID:     userID,
+		CursorName: cursorName,
+		CursorID:   cursorID,
+		ShowAll:    true,  // include inactive/expired decks
+		HideEmpty:  false, // include empty decks so professors can add cards
+		Limit:      limit + 1,
 	})
 	if err != nil {
 		return pagination.Page[model.DeckWithCounts]{}, err
@@ -220,4 +260,8 @@ func (s *StudyService) SubmitAnswer(ctx context.Context, userID, cardID string, 
 
 func (s *StudyService) Stats(ctx context.Context, userID, deckID string) (model.StudyStats, error) {
 	return s.study.Stats(ctx, userID, deckID)
+}
+
+func (s *StudyService) ProfessorStats(ctx context.Context) (model.ProfessorStats, error) {
+	return s.study.ProfessorStats(ctx)
 }

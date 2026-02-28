@@ -2,19 +2,53 @@ package handler
 
 import (
 	"database/sql"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"webapp/internal/csvparse"
 	"webapp/internal/middleware"
 	"webapp/internal/model"
 	"webapp/internal/pagination"
+	"webapp/internal/repository"
 	"webapp/internal/service"
 	"webapp/internal/validate"
 )
+
+// deckMutationError maps service errors from deck/card mutations to HTTP responses.
+// Returns true if an error was written so the caller can return early.
+func deckMutationError(w http.ResponseWriter, err error, notFoundMsg, internalMsg string) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, service.ErrForbidden) {
+		Error(w, http.StatusForbidden, "você não tem permissão para modificar este deck")
+		return true
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		Error(w, http.StatusNotFound, notFoundMsg)
+		return true
+	}
+	if errors.Is(err, repository.ErrDeckNameTaken) {
+		Error(w, http.StatusConflict, "já existe um deck com este nome")
+		return true
+	}
+	if errors.Is(err, repository.ErrCardQuestionTaken) {
+		Error(w, http.StatusConflict, "já existe um card com esta pergunta neste deck. Edite o card existente ou use uma pergunta diferente.")
+		return true
+	}
+	if strings.Contains(err.Error(), "card(s)") {
+		Error(w, http.StatusConflict, err.Error())
+		return true
+	}
+	Error(w, http.StatusInternalServerError, internalMsg)
+	return true
+}
 
 type ContentHandler struct {
 	svc *service.ContentService
@@ -44,6 +78,10 @@ func (h *ContentHandler) CreateDeck(w http.ResponseWriter, r *http.Request) {
 
 	deck, err := h.svc.CreateDeck(r.Context(), name, req.Description, req.Subject)
 	if err != nil {
+		if errors.Is(err, repository.ErrDeckNameTaken) {
+			Error(w, http.StatusConflict, "já existe um deck com este nome")
+			return
+		}
 		Error(w, http.StatusInternalServerError, "failed to create deck")
 		return
 	}
@@ -91,12 +129,7 @@ func (h *ContentHandler) UpdateDeck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	deck, err := h.svc.UpdateDeck(r.Context(), id, name, req.Description, req.Subject)
-	if errors.Is(err, sql.ErrNoRows) {
-		Error(w, http.StatusNotFound, "deck not found")
-		return
-	}
-	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to update deck")
+	if deckMutationError(w, err, "deck not found", "failed to update deck") {
 		return
 	}
 	JSON(w, http.StatusOK, deck)
@@ -116,12 +149,7 @@ func (h *ContentHandler) PatchDeck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	deck, err := h.svc.PatchDeck(r.Context(), id, req)
-	if errors.Is(err, sql.ErrNoRows) {
-		Error(w, http.StatusNotFound, "deck not found")
-		return
-	}
-	if err != nil {
-		Error(w, http.StatusBadRequest, err.Error())
+	if deckMutationError(w, err, "deck not found", err.Error()) {
 		return
 	}
 	JSON(w, http.StatusOK, deck)
@@ -135,16 +163,8 @@ func (h *ContentHandler) DeleteDeck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := h.svc.DeleteDeck(r.Context(), id)
-	if errors.Is(err, sql.ErrNoRows) {
-		Error(w, http.StatusNotFound, "deck not found")
-		return
-	}
 	if err != nil {
-		if strings.Contains(err.Error(), "card(s)") {
-			Error(w, http.StatusConflict, err.Error())
-			return
-		}
-		Error(w, http.StatusInternalServerError, "failed to delete deck")
+		deckMutationError(w, err, "deck not found", "failed to delete deck")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -255,12 +275,7 @@ func (h *ContentHandler) CreateCard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	created, err := h.svc.CreateCard(r.Context(), card)
-	if err != nil {
-		if strings.Contains(err.Error(), "deck not found") {
-			Error(w, http.StatusNotFound, "deck not found")
-			return
-		}
-		Error(w, http.StatusInternalServerError, "failed to create card")
+	if deckMutationError(w, err, "deck not found", "failed to create card") {
 		return
 	}
 	JSON(w, http.StatusCreated, created)
@@ -317,11 +332,7 @@ func (h *ContentHandler) UpdateCard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.UpdateCard(r.Context(), card); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			Error(w, http.StatusNotFound, "card not found")
-			return
-		}
-		Error(w, http.StatusInternalServerError, "failed to update card")
+		deckMutationError(w, err, "card not found", "failed to update card")
 		return
 	}
 	JSON(w, http.StatusOK, card)
@@ -335,11 +346,7 @@ func (h *ContentHandler) DeleteCard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.DeleteCard(r.Context(), id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			Error(w, http.StatusNotFound, "card not found")
-			return
-		}
-		Error(w, http.StatusInternalServerError, "failed to delete card")
+		deckMutationError(w, err, "card not found", "failed to delete card")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -436,6 +443,72 @@ func (h *ContentHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- Helpers ---
+
+// ExportDeckCSV streams a UTF-8 CSV of all cards in a deck.
+func (h *ContentHandler) ExportDeckCSV(w http.ResponseWriter, r *http.Request) {
+	deckID := r.PathValue("id")
+	if err := validate.UUID("id", deckID); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	deckName, cards, err := h.svc.ExportDeckCSV(r.Context(), deckID)
+	if errors.Is(err, sql.ErrNoRows) {
+		Error(w, http.StatusNotFound, "deck not found")
+		return
+	}
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "export failed")
+		return
+	}
+
+	// Sanitise deck name for use in a filename (ASCII-safe, no slashes).
+	safeName := sanitiseFilename(deckName)
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition",
+		fmt.Sprintf(`attachment; filename="%s.csv"`, safeName))
+
+	bom := "\xEF\xBB\xBF" // UTF-8 BOM — Excel opens it correctly
+	if _, err := fmt.Fprint(w, bom); err != nil {
+		return
+	}
+
+	cw := csv.NewWriter(w)
+	_ = cw.Write([]string{"deck", "type", "question", "answer", "topic", "source"})
+
+	for _, c := range cards {
+		topic := ""
+		if c.Topic != nil {
+			topic = *c.Topic
+		}
+		source := ""
+		if c.Source != nil {
+			source = *c.Source
+		}
+		_ = cw.Write([]string{deckName, string(c.Type), c.Question, c.Answer, topic, source})
+	}
+	cw.Flush()
+}
+
+// sanitiseFilename returns a filename-safe version of s (ASCII, ≤60 chars).
+func sanitiseFilename(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if utf8.RuneLen(r) > 1 || r == '/' || r == '\\' || r == ':' || r == '"' {
+			b.WriteRune('_')
+		} else {
+			b.WriteRune(r)
+		}
+		if b.Len() >= 60 {
+			break
+		}
+	}
+	name := strings.TrimSpace(b.String())
+	if name == "" {
+		return "deck"
+	}
+	return name
+}
 
 // validateOptionalFields sanitises and length-checks the optional topic and
 // source pointer fields. Returns (nil, nil, nil) when both are absent.

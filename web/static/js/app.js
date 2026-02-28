@@ -120,6 +120,7 @@
                 nav += '<a href="/progress.html" class="nav-link">Progresso</a>';
                 if (isStaff) {
                     nav += '<a href="/teach.html" class="nav-link">Gerenciar</a>';
+                    nav += '<a href="/professor_stats.html" class="nav-link">Painel</a>';
                 }
                 if (isAdmin) {
                     nav += '<a href="/admin_users.html" class="nav-link">Usuários</a>';
@@ -223,4 +224,11 @@
             }
         }
     };
+    // ── Service Worker registration ──────────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                .catch(function () { /* SW optional — silently ignore */ });
+        });
+    }
 })();

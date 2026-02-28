@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,10 @@ import (
 
 	"webapp/internal/model"
 )
+
+// ErrCardQuestionTaken is returned when a card's question violates the
+// UNIQUE(deck_id, question) constraint.
+var ErrCardQuestionTaken = errors.New("question already exists in this deck")
 
 type CardRepo struct{ db DBTX }
 
@@ -33,6 +38,9 @@ func (r *CardRepo) Create(ctx context.Context, c model.Card) (model.Card, error)
 	out.Topic = toStringPtr(topic)
 	out.Source = toStringPtr(source)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return model.Card{}, ErrCardQuestionTaken
+		}
 		return model.Card{}, fmt.Errorf("card create: %w", err)
 	}
 	return out, nil
@@ -216,6 +224,9 @@ func (r *CardRepo) Update(ctx context.Context, c model.Card) error {
 		c.ID, toNullString(c.Topic), string(c.Type), c.Question, c.Answer, toNullString(c.Source),
 	)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return ErrCardQuestionTaken
+		}
 		return fmt.Errorf("card update: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {

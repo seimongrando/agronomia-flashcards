@@ -28,6 +28,7 @@ type ParseOptions struct {
 type Row struct {
 	Line     int    `json:"line"`
 	Deck     string `json:"deck"`
+	Subject  string `json:"subject,omitempty"` // optional discipline/subject for the deck
 	Type     string `json:"type"`
 	Question string `json:"question"`
 	Answer   string `json:"answer"`
@@ -165,6 +166,7 @@ func validateRow(record []string, colIndex map[string]int, line int, opts ParseO
 	row := Row{
 		Line:     line,
 		Deck:     deckVal,
+		Subject:  sanitize(colVal(record, colIndex, "subject")), // optional
 		Type:     sanitize(colVal(record, colIndex, "type")),
 		Question: normalizeSpaces(colVal(record, colIndex, "question")),
 		Answer:   sanitize(colVal(record, colIndex, "answer")),

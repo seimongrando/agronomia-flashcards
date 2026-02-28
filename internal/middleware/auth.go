@@ -12,12 +12,12 @@ import (
 
 const authInfoKey ctxKey = "auth_info"
 
+// jwtClaims is the minimal set of claims we expect in each token.
+// PII fields (email, name, picture) were removed — they are not needed for
+// authorisation and should not travel in a Base64-decodable cookie payload.
 type jwtClaims struct {
 	jwt.RegisteredClaims
-	Email   string   `json:"email,omitempty"`
-	Name    string   `json:"name,omitempty"`
-	Picture string   `json:"picture,omitempty"`
-	Roles   []string `json:"roles"`
+	Roles []string `json:"roles"`
 }
 
 // RequireAuth validates the access_token cookie and injects AuthInfo into the
@@ -49,11 +49,8 @@ func RequireAuth(jwtSecret []byte) Middleware {
 			}
 
 			info := model.AuthInfo{
-				UserID:  claims.Subject,
-				Email:   claims.Email,
-				Name:    claims.Name,
-				Picture: claims.Picture,
-				Roles:   claims.Roles,
+				UserID: claims.Subject,
+				Roles:  claims.Roles,
 			}
 
 			ctx := context.WithValue(r.Context(), authInfoKey, info)

@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gerenciar Deck &mdash; FlashCards</title>
+    <meta name="theme-color" content="#2E7D32">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Agro Cards">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -35,6 +42,15 @@
                 </div>
                 <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
                     <span id="deck-status-badge"></span>
+                    <a id="btn-export-csv" href="#" download class="btn btn-outline btn-sm"
+                       aria-label="Exportar cards como CSV"
+                       style="display:flex;align-items:center;gap:.3rem">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path d="M8 2v8M5 7l3 3 3-3M3 13h10" stroke="currentColor"
+                                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        CSV
+                    </a>
                     <button id="btn-rename-deck" class="btn btn-outline btn-sm" aria-label="Editar deck"
                             style="display:flex;align-items:center;gap:.35rem">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -103,6 +119,17 @@
             <div id="empty-cards" class="empty-state hidden">
                 <h2>Nenhum card</h2>
                 <p>Adicione cards via upload CSV ou manualmente em <a href="/teach.html">Conteúdo</a>.</p>
+                <!-- Delete zone — only shown when deck is empty -->
+                <div id="delete-zone" class="hidden" style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border)">
+                    <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:.75rem">
+                        Este deck não tem cards. Você pode removê-lo permanentemente.
+                    </p>
+                    <button id="btn-delete-deck" class="btn btn-sm"
+                            style="background:#FEF2F2;color:#B91C1C;border:1px solid #FCA5A5"
+                            aria-label="Excluir deck">
+                        Excluir deck
+                    </button>
+                </div>
             </div>
             <div id="pagination" class="pagination"></div>
         </div>

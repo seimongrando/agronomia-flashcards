@@ -13,7 +13,6 @@ import (
 func authCtx(r *http.Request) *http.Request {
 	ctx := middleware.WithAuthInfo(r.Context(), model.AuthInfo{
 		UserID: "00000000-0000-0000-0000-000000000001",
-		Email:  "test@example.com",
 		Roles:  []string{"student"},
 	})
 	return r.WithContext(ctx)

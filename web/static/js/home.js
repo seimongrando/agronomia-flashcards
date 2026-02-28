@@ -9,6 +9,7 @@
     var searchEl  = document.getElementById("deck-search");
 
     var allDecks = [];
+    var isProfessor = false; // set after auth; used to show inactive badges
 
     function showAuthError() {
         var params = new URLSearchParams(window.location.search);
@@ -40,10 +41,29 @@
                 loginEl.classList.remove("hidden");
                 return;
             }
+            var roles = user.roles || [];
+            isProfessor = roles.indexOf("professor") >= 0 || roles.indexOf("admin") >= 0;
             app.renderTopbar(user);
             contentEl.classList.remove("hidden");
             loadDecks();
+            loadStreak();
         });
+    }
+
+    function loadStreak() {
+        api.get("/api/progress").then(function (res) {
+            if (!res.ok) return;
+            return res.json();
+        }).then(function (d) {
+            if (!d || !d.study_streak) return;
+            var streak = d.study_streak;
+            if (streak < 2) return;
+            var banner = document.getElementById("streak-banner");
+            if (!banner) return;
+            var emoji = streak >= 30 ? "🌳" : streak >= 14 ? "🌿" : streak >= 7 ? "🌱" : "✨";
+            banner.textContent = emoji + " " + streak + " dias consecutivos de estudo! Continue assim.";
+            banner.classList.remove("hidden");
+        }).catch(function () { /* silently ignore */ });
     }
 
     function loadDecks() {
@@ -170,46 +190,82 @@
         return "há " + Math.abs(d) + " dia" + (Math.abs(d) !== 1 ? "s" : "");
     }
 
+    function deckStatus(d) {
+        if (d.is_active === false) return "inactive";
+        if (d.expires_at && new Date(d.expires_at) <= new Date()) return "expired";
+        return "active";
+    }
+
     function renderDeckCard(d) {
+        var status     = deckStatus(d);
+        var isDisabled = status !== "active"; // professor-only: deck hidden from students
+
         var desc = d.description ? '<p class="deck-desc">' + app.esc(d.description) + '</p>' : '';
         var dueLabel   = d.due_now === 1 ? "1 para hoje" : d.due_now + " para hoje";
         var totalLabel = d.total_cards === 1 ? "1 carta" : d.total_cards + " cartas";
 
-        /* ── Review date info ── */
-        var dateInfo = "";
-        if (d.last_studied) {
-            var ago = relativeDate(d.last_studied);
-            dateInfo += '<span class="deck-date">' +
-                '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0"><path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
-                'Estudado ' + app.esc(ago) + '</span>';
-        } else {
-            dateInfo += '<span class="deck-date deck-date--new">' +
-                '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
-                'Nunca estudado</span>';
-        }
-        if (d.due_now === 0 && d.next_review) {
-            var nxt = relativeDate(d.next_review);
-            dateInfo += '<span class="deck-date deck-date--next">' +
-                '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-                'Próxima revisão ' + app.esc(nxt) + '</span>';
+        /* ── Inactive / expired banner (professors only) ── */
+        var inactiveBanner = "";
+        if (isProfessor && isDisabled) {
+            var statusLabel = status === "expired" ? "Expirado" : "Inativo";
+            var statusColor = status === "expired" ? "#B91C1C" : "#6B7280";
+            inactiveBanner =
+                '<div style="display:flex;align-items:center;gap:.4rem;font-size:.78rem;font-weight:600;' +
+                'color:' + statusColor + ';background:' + (status === "expired" ? "#FEF2F2" : "#F3F4F6") + ';' +
+                'border-radius:6px;padding:.35rem .65rem;margin-bottom:.6rem">' +
+                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                '<path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"' +
+                ' stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+                statusLabel + ' — não visível para alunos' +
+                '</div>';
         }
 
-        return '<div class="card deck-card">' +
+        /* ── Review date info ── */
+        var dateInfo = "";
+        if (!isDisabled) {
+            if (d.last_studied) {
+                var ago = relativeDate(d.last_studied);
+                dateInfo += '<span class="deck-date">' +
+                    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0"><path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
+                    'Estudado ' + app.esc(ago) + '</span>';
+            } else {
+                dateInfo += '<span class="deck-date deck-date--new">' +
+                    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
+                    'Nunca estudado</span>';
+            }
+            if (d.due_now === 0 && d.next_review) {
+                var nxt = relativeDate(d.next_review);
+                dateInfo += '<span class="deck-date deck-date--next">' +
+                    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+                    'Próxima revisão ' + app.esc(nxt) + '</span>';
+            }
+        }
+
+        var cardStyle = isDisabled ? ' style="opacity:.6;border-style:dashed"' : '';
+
+        return '<div class="card deck-card"' + cardStyle + '>' +
+            inactiveBanner +
             '<h3>' + app.esc(d.name) + '</h3>' +
             desc +
-            '<div class="deck-meta">' +
-                (d.due_now > 0
-                    ? '<span class="badge badge-due">' + dueLabel + '</span>'
-                    : '<span class="badge badge-ok">Em dia ✓</span>') +
-                '<span class="badge badge-total">' + totalLabel + '</span>' +
-            '</div>' +
-            '<div class="deck-dates">' + dateInfo + '</div>' +
+            (isDisabled ? '' :
+                '<div class="deck-meta">' +
+                    (d.due_now > 0
+                        ? '<span class="badge badge-due">' + dueLabel + '</span>'
+                        : '<span class="badge badge-ok">Em dia ✓</span>') +
+                    '<span class="badge badge-total">' + totalLabel + '</span>' +
+                '</div>' +
+                '<div class="deck-dates">' + dateInfo + '</div>'
+            ) +
             '<div class="deck-actions">' +
-                '<a href="/study.html?deckId=' + d.id + '&mode=due&deckName=' + encodeURIComponent(d.name) + '" class="btn btn-sm btn-primary"' +
-                    (d.due_now === 0 ? ' disabled aria-disabled="true" tabindex="-1"' : '') +
-                    '>Revisar</a>' +
-                '<a href="/study.html?deckId=' + d.id + '&mode=random&deckName=' + encodeURIComponent(d.name) + '" class="btn btn-sm btn-outline">Aleat\u00f3rio</a>' +
-                '<a href="/study.html?deckId=' + d.id + '&mode=wrong&deckName=' + encodeURIComponent(d.name) + '" class="btn btn-sm btn-outline">Errei</a>' +
+                (isDisabled
+                    ? '<a href="/deck_manage.html?deckId=' + d.id + '&deckName=' + encodeURIComponent(d.name) +
+                      '" class="btn btn-sm btn-outline">Gerenciar</a>'
+                    : '<a href="/study.html?deckId=' + d.id + '&mode=due&deckName=' + encodeURIComponent(d.name) + '" class="btn btn-sm btn-primary"' +
+                          (d.due_now === 0 ? ' disabled aria-disabled="true" tabindex="-1"' : '') +
+                          '>Revisar</a>' +
+                      '<a href="/study.html?deckId=' + d.id + '&mode=random&deckName=' + encodeURIComponent(d.name) + '" class="btn btn-sm btn-outline">Aleat\u00f3rio</a>' +
+                      '<a href="/study.html?deckId=' + d.id + '&mode=wrong&deckName=' + encodeURIComponent(d.name) + '" class="btn btn-sm btn-outline">Errei</a>'
+                ) +
             '</div>' +
         '</div>';
     }

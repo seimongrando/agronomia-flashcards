@@ -3,14 +3,19 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"webapp/internal/csvparse"
+	"webapp/internal/middleware"
 	"webapp/internal/model"
 	"webapp/internal/pagination"
 	"webapp/internal/repository"
 )
+
+// ErrForbidden is returned when a professor tries to mutate a deck they don't own.
+var ErrForbidden = errors.New("forbidden: you do not own this deck")
 
 type ContentService struct {
 	db      *sql.DB
@@ -30,11 +35,45 @@ func NewContentService(
 
 // --- Deck CRUD ---
 
+// authFromCtx extracts AuthInfo from the context. Returns zero-value if absent.
+func authFromCtx(ctx context.Context) model.AuthInfo {
+	info, _ := middleware.GetAuthInfo(ctx)
+	return info
+}
+
+// checkDeckOwnership fetches the deck and enforces ownership for non-admins.
+// Admins may mutate any deck. Professors may only mutate decks they created.
+// Returns the deck on success so callers avoid a second DB round-trip.
+func (s *ContentService) checkDeckOwnership(ctx context.Context, deckID string) (model.Deck, error) {
+	deck, err := s.decks.FindByID(ctx, deckID)
+	if err != nil {
+		return model.Deck{}, err
+	}
+	auth := authFromCtx(ctx)
+	if auth.HasAnyRole("admin") {
+		return deck, nil // admins bypass ownership check
+	}
+	if !deck.IsOwnedBy(auth.UserID) {
+		return model.Deck{}, ErrForbidden
+	}
+	return deck, nil
+}
+
+// checkCardDeckOwnership fetches the card's parent deck and enforces ownership.
+func (s *ContentService) checkCardDeckOwnership(ctx context.Context, deckID string) error {
+	_, err := s.checkDeckOwnership(ctx, deckID)
+	return err
+}
+
 func (s *ContentService) CreateDeck(ctx context.Context, name string, desc, subject *string) (model.Deck, error) {
-	return s.decks.Create(ctx, name, desc, subject)
+	auth := authFromCtx(ctx)
+	return s.decks.Create(ctx, name, desc, subject, auth.UserID)
 }
 
 func (s *ContentService) UpdateDeck(ctx context.Context, id, name string, desc, subject *string) (model.Deck, error) {
+	if _, err := s.checkDeckOwnership(ctx, id); err != nil {
+		return model.Deck{}, err
+	}
 	return s.decks.Update(ctx, id, name, desc, subject)
 }
 
@@ -45,6 +84,10 @@ func (s *ContentService) GetDeck(ctx context.Context, id string) (model.Deck, er
 // PatchDeck updates is_active and/or expires_at on a deck.
 // req.ExpiresAt == "" clears the expiry; a valid RFC3339 string sets it; nil leaves it unchanged.
 func (s *ContentService) PatchDeck(ctx context.Context, id string, req model.PatchDeckRequest) (model.Deck, error) {
+	if _, err := s.checkDeckOwnership(ctx, id); err != nil {
+		return model.Deck{}, err
+	}
+
 	var expiresAt *time.Time
 	clearExpiry := false
 
@@ -64,6 +107,9 @@ func (s *ContentService) PatchDeck(ctx context.Context, id string, req model.Pat
 }
 
 func (s *ContentService) DeleteDeck(ctx context.Context, id string) error {
+	if _, err := s.checkDeckOwnership(ctx, id); err != nil {
+		return err
+	}
 	count, err := s.decks.CardCount(ctx, id)
 	if err != nil {
 		return err
@@ -77,13 +123,21 @@ func (s *ContentService) DeleteDeck(ctx context.Context, id string) error {
 // --- Card CRUD ---
 
 func (s *ContentService) CreateCard(ctx context.Context, c model.Card) (model.Card, error) {
-	if _, err := s.decks.FindByID(ctx, c.DeckID); err != nil {
-		return model.Card{}, fmt.Errorf("deck not found: %w", err)
+	if err := s.checkCardDeckOwnership(ctx, c.DeckID); err != nil {
+		return model.Card{}, err
 	}
 	return s.cards.Create(ctx, c)
 }
 
 func (s *ContentService) UpdateCard(ctx context.Context, c model.Card) error {
+	// Fetch current card to resolve its deck, then check ownership.
+	existing, err := s.cards.FindByID(ctx, c.ID)
+	if err != nil {
+		return err
+	}
+	if err := s.checkCardDeckOwnership(ctx, existing.DeckID); err != nil {
+		return err
+	}
 	return s.cards.Update(ctx, c)
 }
 
@@ -130,6 +184,13 @@ func (s *ContentService) GetCard(ctx context.Context, id string) (model.Card, er
 }
 
 func (s *ContentService) DeleteCard(ctx context.Context, id string) error {
+	existing, err := s.cards.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := s.checkCardDeckOwnership(ctx, existing.DeckID); err != nil {
+		return err
+	}
 	return s.cards.Delete(ctx, id)
 }
 
@@ -225,10 +286,17 @@ func (s *ContentService) ImportCSV(ctx context.Context, userID, filename string,
 		if !ok {
 			var created bool
 			var innerErr error
-			deck, created, innerErr = deckTx.FindOrCreateByName(ctx, row.Deck)
+			deck, created, innerErr = deckTx.FindOrCreateByName(ctx, row.Deck, userID)
 			if innerErr != nil {
 				invalid++
 				continue
+			}
+			// Apply subject from CSV when the deck was just created or has no subject yet.
+			if row.Subject != "" && (created || deck.Subject == nil) {
+				subj := row.Subject
+				if updated, updErr := deckTx.Update(ctx, deck.ID, deck.Name, deck.Description, &subj); updErr == nil {
+					deck = updated
+				}
 			}
 			deckCache[row.Deck] = deck
 			if created {
@@ -291,4 +359,18 @@ func (s *ContentService) ImportCSV(ctx context.Context, userID, filename string,
 		InvalidCount:  invalid,
 		DecksCreated:  decksCreated,
 	}, nil
+}
+
+// ExportDeckCSV returns all cards for a deck ordered by created_at.
+// The deck name is resolved so callers can use it in the Content-Disposition header.
+func (s *ContentService) ExportDeckCSV(ctx context.Context, deckID string) (deckName string, cards []model.Card, err error) {
+	deck, err := s.decks.FindByID(ctx, deckID)
+	if err != nil {
+		return "", nil, fmt.Errorf("deck not found: %w", err)
+	}
+	cards, err = s.cards.ListByDeck(ctx, deckID)
+	if err != nil {
+		return "", nil, fmt.Errorf("export list: %w", err)
+	}
+	return deck.Name, cards, nil
 }

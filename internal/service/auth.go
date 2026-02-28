@@ -12,12 +12,14 @@ import (
 	"webapp/internal/repository"
 )
 
+// tokenClaims is the minimal JWT payload.
+// PII (email, name, picture) is intentionally excluded: the JWT is only
+// Base64-encoded (not encrypted), so embedding PII would violate LGPD's
+// data-minimisation principle. The /api/me handler fetches profile data
+// from the database using the subject (user ID) when needed.
 type tokenClaims struct {
 	jwt.RegisteredClaims
-	Email   string   `json:"email,omitempty"`
-	Name    string   `json:"name,omitempty"`
-	Picture string   `json:"picture,omitempty"`
-	Roles   []string `json:"roles"`
+	Roles []string `json:"roles"`
 }
 
 type AuthService struct {
@@ -92,12 +94,7 @@ func (s *AuthService) LoginWithGoogle(ctx context.Context, profile model.GoogleP
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(s.jwtExpiry)),
 		},
-		Email: user.Email,
-		Name:  user.Name,
 		Roles: roleStrs,
-	}
-	if user.PictureURL != nil {
-		claims.Picture = *user.PictureURL
 	}
 
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.jwtSecret)

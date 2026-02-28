@@ -62,6 +62,38 @@ func (h *StudyHandler) ListDecks(w http.ResponseWriter, r *http.Request) {
 	JSON(w, http.StatusOK, page)
 }
 
+// ListDecksForManagement serves GET /api/content/decks for professor/admin.
+// Returns ALL decks including empty and inactive ones for the teach page.
+func (h *StudyHandler) ListDecksForManagement(w http.ResponseWriter, r *http.Request) {
+	info, ok := middleware.GetAuthInfo(r.Context())
+	if !ok {
+		Error(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+
+	limit, err := pagination.ParseLimit(r, pagination.DefaultLimit, pagination.MaxLimit)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var cursorName, cursorID string
+	if c := r.URL.Query().Get("cursor"); c != "" {
+		cursorName, cursorID, err = pagination.DecodeNameIDCursor(c)
+		if err != nil {
+			Error(w, http.StatusBadRequest, "invalid cursor")
+			return
+		}
+	}
+
+	page, err := h.svc.ListDecksForManagement(r.Context(), info.UserID, cursorName, cursorID, limit)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "failed to list decks")
+		return
+	}
+	JSON(w, http.StatusOK, page)
+}
+
 func (h *StudyHandler) NextCard(w http.ResponseWriter, r *http.Request) {
 	info, ok := middleware.GetAuthInfo(r.Context())
 	if !ok {
@@ -180,6 +212,16 @@ func (h *StudyHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.svc.Stats(r.Context(), info.UserID, deckID)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "failed to load stats")
+		return
+	}
+	JSON(w, http.StatusOK, stats)
+}
+
+// ProfessorStats returns aggregate content and engagement metrics (no PII).
+func (h *StudyHandler) ProfessorStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.svc.ProfessorStats(r.Context())
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "failed to load professor stats")
 		return
 	}
 	JSON(w, http.StatusOK, stats)

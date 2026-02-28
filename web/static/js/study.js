@@ -7,38 +7,43 @@
     var deckName  = params.get("deckName") ? decodeURIComponent(params.get("deckName")) : null;
 
     /* ── Stable DOM refs (never replaced) ─────────────────────────────────── */
-    var counterEl    = document.getElementById("study-counter");
-    var deckCtxEl    = document.getElementById("deck-context");
+    var counterEl     = document.getElementById("study-counter");
+    var deckCtxEl     = document.getElementById("deck-context");
     var topicFilterEl = document.getElementById("topic-filter");
-    var spinnerEl    = document.getElementById("study-spinner");
-    var doneEl       = document.getElementById("study-done");
-    var cardAreaEl   = document.getElementById("card-area");
-    var cardDragEl   = document.getElementById("card-drag");
-    var cardSceneEl  = document.getElementById("card-scene");
-    var flashcardEl  = document.getElementById("flashcard");
-    var headFront    = document.getElementById("head-front");
-    var bodyFront    = document.getElementById("body-front");
-    var headBack     = document.getElementById("head-back");
-    var bodyBack     = document.getElementById("body-back");
-    var answerBar    = document.getElementById("answer-bar");
-    var btnWrong     = document.getElementById("btn-wrong");
-    var btnHard      = document.getElementById("btn-hard");
-    var btnRight     = document.getElementById("btn-right");
-    var lblWrong     = document.getElementById("lbl-wrong");
-    var lblRight     = document.getElementById("lbl-right");
-    var lblHard      = document.getElementById("lbl-hard");
-    var progressFill = document.getElementById("progress-fill");
-    var progressLbl  = document.getElementById("progress-label");
-    var progressTrack= document.getElementById("progress-track");
+    var spinnerEl     = document.getElementById("study-spinner");
+    var doneEl        = document.getElementById("study-done");
+    var cardAreaEl    = document.getElementById("card-area");
+    var cardDragEl    = document.getElementById("card-drag");
+    var cardSceneEl   = document.getElementById("card-scene");
+    var flashcardEl   = document.getElementById("flashcard");
+    var headFront     = document.getElementById("head-front");
+    var bodyFront     = document.getElementById("body-front");
+    var headBack      = document.getElementById("head-back");
+    var bodyBack      = document.getElementById("body-back");
+    var answerBar     = document.getElementById("answer-bar");
+    var answerHelp    = document.getElementById("answer-help");
+    var btnHelpToggle = document.getElementById("btn-help-toggle");
+    var btnWrong      = document.getElementById("btn-wrong");
+    var btnHard       = document.getElementById("btn-hard");
+    var btnRight      = document.getElementById("btn-right");
+    var lblWrong      = document.getElementById("lbl-wrong");
+    var lblRight      = document.getElementById("lbl-right");
+    var lblHard       = document.getElementById("lbl-hard");
+    var progressFill  = document.getElementById("progress-fill");
+    var progressLbl   = document.getElementById("progress-label");
+    var progressTrack = document.getElementById("progress-track");
 
     /* ── State ─────────────────────────────────────────────────────────────── */
-    var currentCard  = null;
-    var flipped      = false;
-    var submitting   = false;
-    var remaining    = null;   // due_now for "due" mode
-    var totalCards   = null;   // total cards in deck (for progress bar + session cap)
-    var sessionCount = 0;      // cards answered in this session
-    var activeTopic  = "";     // "" = all topics
+    var currentCard   = null;
+    var flipped       = false;
+    var submitting    = false;
+    var remaining     = null;  // due_now for "due" mode
+    var totalCards    = null;  // total cards in deck (for progress bar + session cap)
+    var sessionCount  = 0;     // cards answered in this session
+    var sessionCorrect = 0;    // result = 2
+    var sessionHard    = 0;    // result = 1
+    var sessionWrong   = 0;    // result = 0
+    var activeTopic   = "";    // "" = all topics
 
     /* ── Swipe / drag state ─────────────────────────────────────────────────  */
     var SWIPE_THRESHOLD = 72;
@@ -69,6 +74,7 @@
         setupSwipe();
         setupButtons();
         setupKeyboard();
+        setupHelp();
     }
 
     /* ════════════════════════════════════════════════════════════════════════
@@ -224,6 +230,9 @@
             if (!res.ok) throw new Error("answer failed");
 
             sessionCount++;
+            if      (result === 2) sessionCorrect++;
+            else if (result === 1) sessionHard++;
+            else                   sessionWrong++;
 
             // Update "due" remaining counter
             if (mode === "due" && remaining !== null) {
@@ -257,6 +266,15 @@
         btnWrong.addEventListener("click", function () { flyAndAnswer(0, "left"); });
         btnHard.addEventListener("click",  function () { flyAndAnswer(1, "up"); });
         btnRight.addEventListener("click", function () { flyAndAnswer(2, "right"); });
+    }
+
+    function setupHelp() {
+        if (!btnHelpToggle || !answerHelp) return;
+        btnHelpToggle.addEventListener("click", function () {
+            var open = !answerHelp.classList.contains("hidden");
+            answerHelp.classList.toggle("hidden", open);
+            btnHelpToggle.setAttribute("aria-expanded", String(!open));
+        });
     }
 
     function setupKeyboard() {
@@ -326,7 +344,10 @@
             btn.classList.add("active");
             activeTopic = btn.getAttribute("data-topic") || "";
             // Reset session for new topic
-            sessionCount = 0;
+            sessionCount   = 0;
+            sessionCorrect = 0;
+            sessionHard    = 0;
+            sessionWrong   = 0;
             currentCard = null;
             flipped = false;
             flashcardEl.classList.remove("is-flipped");
@@ -419,6 +440,10 @@
         cardAreaEl.classList.add("hidden");
         answerBar.classList.add("hidden");
         doneEl.classList.add("hidden");
+        if (answerHelp) {
+            answerHelp.classList.add("hidden");
+            if (btnHelpToggle) btnHelpToggle.setAttribute("aria-expanded", "false");
+        }
 
         var nextUrl = "/api/study/next?deckId=" + deckId + "&mode=" + mode;
         if (activeTopic) nextUrl += "&topic=" + encodeURIComponent(activeTopic);
@@ -494,21 +519,70 @@
         spinnerEl.classList.add("hidden");
         cardAreaEl.classList.add("hidden");
         answerBar.classList.add("hidden");
+        if (answerHelp) answerHelp.classList.add("hidden");
 
         var iconSVG = isError
             ? '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="color:#E53935"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
             : '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="color:var(--green-800)"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 4L12 14.01l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+        // Session summary (only when at least 1 card was answered)
+        var summaryHTML = '';
+        if (!isError && sessionCount > 0) {
+            var accuracy = Math.round(sessionCorrect * 100 / sessionCount);
+            var fillClass = accuracy >= 80 ? 'done-accuracy__fill--ok'
+                          : accuracy >= 50 ? 'done-accuracy__fill--mid'
+                          :                  'done-accuracy__fill--low';
+            var pctColor  = accuracy >= 80 ? 'var(--green-800)'
+                          : accuracy >= 50 ? '#e65100'
+                          :                  '#b71c1c';
+            var motivMsg  = accuracy >= 80 ? 'Excelente! Continue assim.'
+                          : accuracy >= 50 ? 'Bom trabalho. Foque nas cartas erradas.'
+                          :                  'Revise os fundamentos. Você vai melhorar!';
+            summaryHTML =
+                '<div class="done-summary">' +
+                  '<div class="done-stat-grid">' +
+                    '<div class="done-stat">' +
+                      '<span class="done-stat__val">' + sessionCount + '</span>' +
+                      '<span class="done-stat__lbl">revisadas</span>' +
+                    '</div>' +
+                    '<div class="done-stat done-stat--ok">' +
+                      '<span class="done-stat__val">' + sessionCorrect + '</span>' +
+                      '<span class="done-stat__lbl">acertei</span>' +
+                    '</div>' +
+                    '<div class="done-stat done-stat--hard">' +
+                      '<span class="done-stat__val">' + sessionHard + '</span>' +
+                      '<span class="done-stat__lbl">dif\u00edcil</span>' +
+                    '</div>' +
+                    '<div class="done-stat done-stat--wrong">' +
+                      '<span class="done-stat__val">' + sessionWrong + '</span>' +
+                      '<span class="done-stat__lbl">errei</span>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="done-accuracy">' +
+                    '<div class="done-accuracy__bar">' +
+                      '<div class="done-accuracy__fill ' + fillClass + '" style="width:' + accuracy + '%"></div>' +
+                    '</div>' +
+                    '<span class="done-accuracy__pct" style="color:' + pctColor + '">' + accuracy + '%</span>' +
+                  '</div>' +
+                  '<p class="done-motiv">' + app.esc(motivMsg) + '</p>' +
+                '</div>';
+        }
+
         doneEl.innerHTML =
             '<div class="done-icon">' + iconSVG + '</div>' +
             '<h2>' + app.esc(title) + '</h2>' +
             '<p>' + app.esc(message) + '</p>' +
+            summaryHTML +
             '<div class="done-actions">' +
                 '<a href="/" class="btn btn-primary">Ver decks</a>' +
                 (isError ? '' :
                     (mode === "random"
-                        ? '<a href="/study.html?deckId=' + encodeURIComponent(deckId) + '&mode=random" class="btn btn-outline">Revisar de novo</a>'
-                        : '<a href="/study.html?deckId=' + encodeURIComponent(deckId) + '&mode=random" class="btn btn-outline">Modo aleat\u00f3rio</a>')
+                        ? '<a href="/study.html?deckId=' + encodeURIComponent(deckId) + '&mode=random' +
+                          (deckName ? '&deckName=' + encodeURIComponent(deckName) : '') +
+                          '" class="btn btn-outline">Revisar de novo</a>'
+                        : '<a href="/study.html?deckId=' + encodeURIComponent(deckId) + '&mode=random' +
+                          (deckName ? '&deckName=' + encodeURIComponent(deckName) : '') +
+                          '" class="btn btn-outline">Modo aleat\u00f3rio</a>')
                 ) +
             '</div>';
         doneEl.classList.remove("hidden");

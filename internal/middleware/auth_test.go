@@ -22,8 +22,6 @@ func makeToken(t *testing.T, secret []byte, userID string, roles []string, ttl t
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 		},
-		Email: "test@example.com",
-		Name:  "Test User",
 		Roles: roles,
 	}
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(secret)
@@ -113,9 +111,6 @@ func TestRequireAuth_SetsContext(t *testing.T) {
 	}
 	if got.UserID != "user-42" {
 		t.Errorf("UserID = %q, want %q", got.UserID, "user-42")
-	}
-	if got.Email != "test@example.com" {
-		t.Errorf("Email = %q, want %q", got.Email, "test@example.com")
 	}
 	if len(got.Roles) != 2 {
 		t.Fatalf("len(Roles) = %d, want 2", len(got.Roles))

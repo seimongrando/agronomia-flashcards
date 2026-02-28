@@ -1,12 +1,11 @@
 package model
 
 // AuthInfo is the identity extracted from a validated JWT and stored in request context.
+// Only UserID and Roles are stored — no PII travels via the context chain.
+// Profile data (name, email, picture) must be fetched from the database when needed.
 type AuthInfo struct {
-	UserID  string   `json:"user_id"`
-	Email   string   `json:"email"`
-	Name    string   `json:"name"`
-	Picture string   `json:"picture,omitempty"`
-	Roles   []string `json:"roles"`
+	UserID string   `json:"user_id"`
+	Roles  []string `json:"roles"`
 }
 
 // HasAnyRole returns true if the user holds at least one of the given roles.

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"webapp/internal/middleware"
+	"webapp/internal/model"
 	"webapp/internal/repository"
 )
 
@@ -15,7 +16,9 @@ func NewMeHandler(users *repository.UserRepo) *MeHandler {
 	return &MeHandler{users: users}
 }
 
-// Me returns the authenticated user's profile and roles from the database.
+// Me returns the authenticated user's public profile and roles.
+// The response uses MeResponse — a minimal DTO that never exposes google_sub,
+// internal timestamps, or other fields not required by the frontend (LGPD/minimisation).
 func (h *MeHandler) Me(w http.ResponseWriter, r *http.Request) {
 	info, ok := middleware.GetAuthInfo(r.Context())
 	if !ok {
@@ -41,7 +44,12 @@ func (h *MeHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	JSON(w, http.StatusOK, map[string]any{
-		"user":  user,
+		"user": model.MeResponse{
+			ID:         user.ID,
+			Name:       user.Name,
+			Email:      user.Email,
+			PictureURL: user.PictureURL,
+		},
 		"roles": roleStrs,
 	})
 }

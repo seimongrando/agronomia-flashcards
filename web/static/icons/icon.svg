@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#2E7D32"/>
+  <!-- Leaf / sprout icon  same as app topbar -->
+  <g transform="translate(256,256)" stroke="white" stroke-linecap="round" fill="none">
+    <!-- Main stem -->
+    <line x1="0" y1="120" x2="0" y2="-20" stroke-width="22"/>
+    <!-- Right leaf -->
+    <path d="M0 10 C20 -30 80 -60 110 -70 C110 -30 70 0 0 10Z" fill="white" stroke="none"/>
+    <!-- Left leaf -->
+    <path d="M0 50 C-20 10 -80 -20 -110 -30 C-110 10 -70 40 0 50Z" fill="white" opacity="0.75" stroke="none"/>
+    <!-- Ground line -->
+    <path d="M-55 120 Q0 108 55 120" stroke-width="20" fill="none"/>
+  </g>
+</svg>

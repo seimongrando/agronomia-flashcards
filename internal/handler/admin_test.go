@@ -13,7 +13,6 @@ import (
 func adminCtx(r *http.Request) *http.Request {
 	ctx := middleware.WithAuthInfo(r.Context(), model.AuthInfo{
 		UserID: "00000000-0000-0000-0000-000000000099",
-		Email:  "admin@example.com",
 		Roles:  []string{"admin"},
 	})
 	return r.WithContext(ctx)
@@ -22,7 +21,6 @@ func adminCtx(r *http.Request) *http.Request {
 func studentCtx(r *http.Request) *http.Request {
 	ctx := middleware.WithAuthInfo(r.Context(), model.AuthInfo{
 		UserID: "00000000-0000-0000-0000-000000000002",
-		Email:  "student@example.com",
 		Roles:  []string{"student"},
 	})
 	return r.WithContext(ctx)
@@ -31,7 +29,6 @@ func studentCtx(r *http.Request) *http.Request {
 func professorCtx(r *http.Request) *http.Request {
 	ctx := middleware.WithAuthInfo(r.Context(), model.AuthInfo{
 		UserID: "00000000-0000-0000-0000-000000000003",
-		Email:  "prof@example.com",
 		Roles:  []string{"professor"},
 	})
 	return r.WithContext(ctx)

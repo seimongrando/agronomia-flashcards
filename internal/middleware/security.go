@@ -24,6 +24,8 @@ func SecurityHeaders(prod bool) Middleware {
 		" connect-src 'self';" +
 		" font-src 'self' https://fonts.gstatic.com;" +
 		" object-src 'none';" +
+		" worker-src 'self';" +
+		" manifest-src 'self';" +
 		" frame-ancestors 'none';" +
 		" base-uri 'self';" +
 		" form-action 'self' https://accounts.google.com"

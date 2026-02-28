@@ -1,5 +1,5 @@
-deck,type,question,answer,topic,source
-Biologia,conceito,O que é mitose?,Divisão celular que resulta em duas células-filhas geneticamente idênticas.,Célula,Livro de Bio Cap. 3
-Biologia,processo,Descreva as fases da mitose.,Prófase → Metáfase → Anáfase → Telófase.,Célula,
-História,aplicacao,Como a Revolução Industrial impactou a urbanização?,Provocou êxodo rural e crescimento desordenado das cidades.,Idade Moderna,Apostila p.42
-História,comparacao,Compare feudalismo e capitalismo.,Feudalismo: economia agrária e troca. Capitalismo: economia de mercado e lucro.,Sistemas econômicos,
+deck,subject,type,question,answer,topic,source
+Fotossíntese,Biologia Vegetal,conceito,O que é fotossíntese?,Processo pelo qual plantas convertem luz solar em energia química (glicose).,Cloroplasto,Livro de Bio Cap. 5
+Fotossíntese,Biologia Vegetal,processo,Quais são as fases da fotossíntese?,Fase luminosa (tilacóide) e Ciclo de Calvin (estroma).,Reações,
+Fertilidade do Solo,Química do Solo,aplicacao,Como calcular a necessidade de calagem?,Dose = (V2 - V1) × CTC / PRNT × 100,Calagem,Apostila UFPR
+Fertilidade do Solo,Química do Solo,comparacao,Diferença entre adubação orgânica e mineral.,Orgânica: liberação lenta e melhora do solo. Mineral: ação rápida e concentrada.,Nutrição,

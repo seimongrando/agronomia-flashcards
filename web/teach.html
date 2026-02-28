@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gerenciar Conteúdo &mdash; Agronomia Flashcards</title>
+    <meta name="theme-color" content="#2E7D32">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Agro Cards">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -51,42 +58,57 @@
                 <p class="page-subtitle">Crie decks, fa&ccedil;a upload de cards via CSV ou adicione manualmente.</p>
             </div>
 
-            <!-- ── 1. Deck selector ──────────────────────────────── -->
+            <!-- ── 1. Deck panel ──────────────────────────────────── -->
             <div class="section">
-                <div class="section-title">Deck ativo</div>
-                <div class="deck-select-row">
-                    <select id="deck-select" class="select" aria-label="Selecionar deck">
-                        <option value="">Selecione um deck…</option>
-                    </select>
-                    <button id="btn-new-deck" class="btn btn-outline btn-sm"
-                            aria-label="Criar novo deck">+ Novo deck</button>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+                    <div class="section-title" style="margin-bottom:0">Seus Decks</div>
+                    <div style="display:flex;gap:.5rem;align-items:center">
+                        <a href="/professor_stats.html" class="btn btn-outline btn-sm" style="white-space:nowrap">📊 Painel</a>
+                        <button id="btn-new-deck" class="btn btn-primary btn-sm" aria-label="Criar novo deck">+ Novo deck</button>
+                    </div>
                 </div>
 
-                <div id="new-deck-form" class="hidden mt-1" style="display:none">
-                    <div class="field-row mt-1">
+                <!-- New deck form (inline card) -->
+                <div id="new-deck-form" class="hidden card" style="padding:.9rem;margin-bottom:.75rem">
+                    <p class="text-muted" style="margin-bottom:.6rem;font-size:.85rem">Criar novo deck</p>
+                    <div class="field-row">
                         <div class="field" style="flex:2">
                             <input id="new-deck-name" type="text" class="input"
-                                   placeholder="Nome do deck (máx. 80 caracteres)"
+                                   placeholder="Nome do deck (máx. 80 car.)"
                                    maxlength="80" aria-label="Nome do novo deck">
                         </div>
                         <div class="field" style="flex:1">
                             <input id="new-deck-subject" type="text" class="input"
-                                   placeholder="Matéria (ex: Química do Solo)"
+                                   placeholder="Matéria (opcional)"
                                    maxlength="80" aria-label="Matéria do deck"
                                    list="subject-suggestions">
                             <datalist id="subject-suggestions"></datalist>
                         </div>
-                        <button id="btn-create-deck" class="btn btn-primary btn-sm"
-                                style="align-self:flex-end" aria-label="Confirmar criação">Criar</button>
-                        <button id="btn-cancel-deck" class="btn btn-outline btn-sm"
-                                style="align-self:flex-end" aria-label="Cancelar criação">✕</button>
+                    </div>
+                    <div style="display:flex;gap:.5rem;margin-top:.5rem">
+                        <button id="btn-create-deck" class="btn btn-primary btn-sm" aria-label="Confirmar criação">Criar deck</button>
+                        <button id="btn-cancel-deck" class="btn btn-outline btn-sm" aria-label="Cancelar">Cancelar</button>
                     </div>
                 </div>
 
-                <div id="deck-link" class="hidden mt-1">
-                    <a id="deck-manage-link" href="#" style="font-size:.85rem;color:var(--primary);font-weight:500">
-                        Gerenciar cards deste deck →
-                    </a>
+                <!-- Hidden select — used programmatically by JS (CSV upload / card save) -->
+                <select id="deck-select" class="sr-only" aria-label="Deck selecionado" tabindex="-1">
+                    <option value=""></option>
+                </select>
+
+                <!-- Visual deck grid -->
+                <div id="deck-picker-grid" class="deck-picker-grid" aria-label="Lista de decks" role="list">
+                    <div style="padding:.5rem"><div class="spinner" style="width:20px;height:20px" role="status" aria-label="Carregando decks…"></div></div>
+                </div>
+
+                <p id="deck-empty-msg" class="text-muted hidden" style="padding:.5rem 0;font-size:.9rem">
+                    Nenhum deck criado ainda. Clique em <strong>+ Novo deck</strong> para começar.
+                </p>
+
+                <!-- Active deck context bar -->
+                <div id="active-deck-bar" class="hidden active-deck-bar" style="margin-top:.6rem">
+                    <div id="active-deck-info"></div>
+                    <a id="deck-manage-link" href="#" class="btn btn-outline btn-sm" style="white-space:nowrap">Gerenciar →</a>
                 </div>
             </div>
 
@@ -100,59 +122,63 @@
                     <div id="csv-body" class="collapsible-body hidden">
                         <div class="card" style="padding:1rem 1.1rem">
 
-                            <!-- CSV format guide -->
-                            <div class="csv-guide">
-                                <p class="csv-guide__title">Formato do arquivo</p>
-                                <p class="csv-guide__text">O CSV deve ter cabeçalho na primeira linha. As colunas <strong>deck</strong>, <strong>type</strong>, <strong>question</strong> e <strong>answer</strong> são obrigatórias. <strong>topic</strong> e <strong>source</strong> são opcionais.</p>
-                                <code class="csv-code">deck,type,question,answer,topic,source</code>
-
-                                <p class="csv-guide__title">Valores válidos para <code>type</code></p>
-                                <div class="csv-types">
-                                    <div class="csv-type-row">
-                                        <span class="badge badge-type" data-type="conceito">conceito</span>
-                                        <span class="csv-type-desc">definição ou teoria — ex: &ldquo;O que é fotossíntese?&rdquo;</span>
-                                    </div>
-                                    <div class="csv-type-row">
-                                        <span class="badge badge-type" data-type="processo">processo</span>
-                                        <span class="csv-type-desc">como fazer — ex: &ldquo;Quais são as etapas da germinação?&rdquo;</span>
-                                    </div>
-                                    <div class="csv-type-row">
-                                        <span class="badge badge-type" data-type="aplicacao">aplicacao</span>
-                                        <span class="csv-type-desc">uso prático — ex: &ldquo;Como aplicar NPK em solo argiloso?&rdquo;</span>
-                                    </div>
-                                    <div class="csv-type-row">
-                                        <span class="badge badge-type" data-type="comparacao">comparacao</span>
-                                        <span class="csv-type-desc">semelhanças/diferenças — ex: &ldquo;Diferença entre adubação orgânica e mineral&rdquo;</span>
-                                    </div>
-                                </div>
-
-                                <p class="csv-guide__title">Exemplo de linhas</p>
-                                <pre class="csv-example">deck,type,question,answer,topic,source
-Fotossíntese,conceito,O que é fotossíntese?,Processo pelo qual plantas convertem luz em energia química.,Biologia Vegetal,Cap. 5
-Fotossíntese,processo,Quais são as fases da fotossíntese?,Fase luminosa (tilacóide) e Ciclo de Calvin (estroma).,Cloroplasto,
-Solo,aplicacao,Como calcular a necessidade de calagem?,Dose = (V2 - V1) × CTC / PRNT × 100,Fertilidade,Apostila UFPR</pre>
-
-                                <p class="csv-guide__note">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:middle;margin-right:.3rem"><path d="M12 16v-4M12 8h.01M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                                    Se um deck já está selecionado acima, a coluna <code>deck</code> pode ser omitida — os cards serão adicionados ao deck ativo. Importar a mesma pergunta duas vezes atualiza o card existente (sem duplicatas).
-                                </p>
-                            </div>
-
-                            <hr class="csv-divider">
-
-                            <!-- Template download -->
-                            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
-                                <span class="text-muted">
-                                    Baixe o template, preencha e arraste abaixo.
-                                </span>
+                            <!-- Actions bar: download + sub-guide toggle -->
+                            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem;margin-bottom:.9rem">
                                 <a href="/static/template.csv" download class="btn btn-outline btn-sm"
                                    aria-label="Baixar template CSV">
-                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                                         <path d="M8 2v8M5 7l3 3 3-3M3 13h10" stroke="currentColor"
                                               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                                     </svg>
-                                    template.csv
+                                    Baixar template.csv
                                 </a>
+                                <button id="csv-guide-toggle" class="btn-link" aria-expanded="false"
+                                        style="font-size:.83rem;color:var(--text-secondary)">
+                                    Ver formato e exemplos ▾
+                                </button>
+                            </div>
+
+                            <!-- Collapsible format guide -->
+                            <div id="csv-guide-body" class="hidden" style="margin-bottom:.9rem">
+                                <div class="csv-guide">
+                                    <p class="csv-guide__title">Colunas do arquivo</p>
+                                    <p class="csv-guide__text">
+                                        Obrigatórias: <code>deck</code>, <code>type</code>, <code>question</code>, <code>answer</code>.<br>
+                                        Opcionais: <code>subject</code> (matéria do deck), <code>topic</code>, <code>source</code>.
+                                    </p>
+                                    <code class="csv-code">deck,subject,type,question,answer,topic,source</code>
+
+                                    <p class="csv-guide__title" style="margin-top:.75rem">Valores válidos para <code>type</code></p>
+                                    <div class="csv-types">
+                                        <div class="csv-type-row">
+                                            <span class="badge badge-type" data-type="conceito">conceito</span>
+                                            <span class="csv-type-desc">defini&ccedil;&atilde;o ou teoria</span>
+                                        </div>
+                                        <div class="csv-type-row">
+                                            <span class="badge badge-type" data-type="processo">processo</span>
+                                            <span class="csv-type-desc">como fazer / etapas</span>
+                                        </div>
+                                        <div class="csv-type-row">
+                                            <span class="badge badge-type" data-type="aplicacao">aplicacao</span>
+                                            <span class="csv-type-desc">uso pr&aacute;tico</span>
+                                        </div>
+                                        <div class="csv-type-row">
+                                            <span class="badge badge-type" data-type="comparacao">comparacao</span>
+                                            <span class="csv-type-desc">semelhan&ccedil;as / diferen&ccedil;as</span>
+                                        </div>
+                                    </div>
+
+                                    <p class="csv-guide__title" style="margin-top:.75rem">Exemplo</p>
+                                    <pre class="csv-example">deck,subject,type,question,answer,topic,source
+Fotoss&iacute;ntese,Biologia Vegetal,conceito,O que &eacute; fotoss&iacute;ntese?,Convers&atilde;o de luz em glicose.,Cloroplasto,Cap. 5
+Fotoss&iacute;ntese,Biologia Vegetal,processo,Fases da fotoss&iacute;ntese?,Fase luminosa e Ciclo de Calvin.,,
+Fertilidade,Qu&iacute;mica do Solo,aplicacao,Como calcular calagem?,Dose = (V2-V1) &times; CTC / PRNT &times; 100,Calagem,UFPR</pre>
+
+                                    <p class="csv-guide__note" style="margin-top:.6rem">
+                                        Se um deck j&aacute; est&aacute; selecionado acima, a coluna <code>deck</code> pode ser omitida.
+                                        A mesma pergunta importada duas vezes <strong>atualiza</strong> o card existente (sem duplicatas).
+                                    </p>
+                                </div>
                             </div>
 
                             <!-- Drop zone -->
@@ -161,7 +187,7 @@ Solo,aplicacao,Como calcular a necessidade de calagem?,Dose = (V2 - V1) × CTC /
                                  aria-label="Área de upload. Clique ou arraste um arquivo CSV.">
                                 <input type="file" id="csv-file" accept=".csv,text/csv" aria-label="Selecionar arquivo CSV">
                                 <div class="dropzone-icon" aria-hidden="true">
-                                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
                                          xmlns="http://www.w3.org/2000/svg">
                                         <path d="M12 16V8M9 11l3-3 3 3" stroke="currentColor"
                                               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -170,8 +196,8 @@ Solo,aplicacao,Como calcular a necessidade de calagem?,Dose = (V2 - V1) × CTC /
                                               stroke-linecap="round" stroke-linejoin="round"/>
                                     </svg>
                                 </div>
-                                <p><strong>Clique ou arraste</strong> um arquivo CSV aqui</p>
-                                <p style="font-size:.8rem;margin-top:.25rem">M&aacute;x. 2 MB &middot; 2000 linhas</p>
+                                <p><strong>Clique ou arraste</strong> um arquivo CSV</p>
+                                <p style="font-size:.78rem;margin-top:.2rem;color:var(--text-secondary)">M&aacute;x. 2 MB &middot; 2000 linhas</p>
                                 <p id="file-name" class="hidden mt-1"
                                    style="font-size:.85rem;font-weight:600;color:var(--primary)"></p>
                             </div>

@@ -3,29 +3,36 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
+
 	"webapp/internal/model"
 )
+
+// ErrDeckNameTaken is returned when a deck name violates the UNIQUE constraint.
+var ErrDeckNameTaken = errors.New("deck name already exists")
 
 type DeckRepo struct{ db DBTX }
 
 func NewDeckRepo(db DBTX) *DeckRepo { return &DeckRepo{db: db} }
 
-const deckCols = `id, name, description, subject, is_active, expires_at, created_at`
+const deckCols = `id, name, description, subject, is_active, expires_at, created_at, created_by`
 
 func scanDeck(row interface {
 	Scan(dest ...any) error
 }) (model.Deck, error) {
 	var d model.Deck
-	var desc, subj sql.NullString
+	var desc, subj, createdBy sql.NullString
 	var exp sql.NullTime
-	if err := row.Scan(&d.ID, &d.Name, &desc, &subj, &d.IsActive, &exp, &d.CreatedAt); err != nil {
+	if err := row.Scan(&d.ID, &d.Name, &desc, &subj, &d.IsActive, &exp, &d.CreatedAt, &createdBy); err != nil {
 		return model.Deck{}, err
 	}
 	d.Description = toStringPtr(desc)
 	d.Subject = toStringPtr(subj)
+	d.CreatedBy = toStringPtr(createdBy)
 	if exp.Valid {
 		t := exp.Time
 		d.ExpiresAt = &t
@@ -33,13 +40,22 @@ func scanDeck(row interface {
 	return d, nil
 }
 
-func (r *DeckRepo) Create(ctx context.Context, name string, description, subject *string) (model.Deck, error) {
-	q := `INSERT INTO decks (name, description, subject) VALUES ($1, $2, $3) RETURNING ` + deckCols
-	d, err := scanDeck(r.db.QueryRowContext(ctx, q, name, toNullString(description), toNullString(subject)))
+func (r *DeckRepo) Create(ctx context.Context, name string, description, subject *string, createdBy string) (model.Deck, error) {
+	q := `INSERT INTO decks (name, description, subject, created_by) VALUES ($1, $2, $3, $4) RETURNING ` + deckCols
+	d, err := scanDeck(r.db.QueryRowContext(ctx, q, name, toNullString(description), toNullString(subject), createdBy))
 	if err != nil {
+		if isUniqueViolation(err) {
+			return model.Deck{}, ErrDeckNameTaken
+		}
 		return model.Deck{}, fmt.Errorf("deck create: %w", err)
 	}
 	return d, nil
+}
+
+// isUniqueViolation reports whether err is a PostgreSQL unique-constraint violation.
+func isUniqueViolation(err error) bool {
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && pqErr.Code == "23505"
 }
 
 func (r *DeckRepo) FindByID(ctx context.Context, id string) (model.Deck, error) {
@@ -84,6 +100,9 @@ func (r *DeckRepo) Update(ctx context.Context, id, name string, description, sub
 	      WHERE id=$1 RETURNING ` + deckCols
 	d, err := scanDeck(r.db.QueryRowContext(ctx, q, id, name, toNullString(description), toNullString(subject)))
 	if err != nil {
+		if isUniqueViolation(err) {
+			return model.Deck{}, ErrDeckNameTaken
+		}
 		return model.Deck{}, fmt.Errorf("deck update: %w", err)
 	}
 	return d, nil
@@ -143,21 +162,23 @@ func (r *DeckRepo) Delete(ctx context.Context, id string) error {
 }
 
 // FindOrCreateByName upserts a deck by name (used during CSV import).
+// createdBy is set on INSERT only; on conflict the existing owner is preserved.
 // Subject and active status are not touched — set separately by the professor.
-func (r *DeckRepo) FindOrCreateByName(ctx context.Context, name string) (model.Deck, bool, error) {
-	q := `INSERT INTO decks (name) VALUES ($1)
+func (r *DeckRepo) FindOrCreateByName(ctx context.Context, name, createdBy string) (model.Deck, bool, error) {
+	q := `INSERT INTO decks (name, created_by) VALUES ($1, $2)
 		  ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
 		  RETURNING ` + deckCols + `, (xmax = 0) AS was_created`
 
 	var d model.Deck
-	var desc, subj sql.NullString
+	var desc, subj, cb sql.NullString
 	var exp sql.NullTime
 	var wasCreated bool
-	err := r.db.QueryRowContext(ctx, q, name).Scan(
-		&d.ID, &d.Name, &desc, &subj, &d.IsActive, &exp, &d.CreatedAt, &wasCreated,
+	err := r.db.QueryRowContext(ctx, q, name, createdBy).Scan(
+		&d.ID, &d.Name, &desc, &subj, &d.IsActive, &exp, &d.CreatedAt, &cb, &wasCreated,
 	)
 	d.Description = toStringPtr(desc)
 	d.Subject = toStringPtr(subj)
+	d.CreatedBy = toStringPtr(cb)
 	if exp.Valid {
 		t := exp.Time
 		d.ExpiresAt = &t

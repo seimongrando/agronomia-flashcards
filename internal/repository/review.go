@@ -52,30 +52,3 @@ func (r *ReviewRepo) FindByUserAndCard(ctx context.Context, userID, cardID strin
 	}
 	return rv, nil
 }
-
-// DueByUser returns the next cards due for review, ordered by next_due ASC.
-func (r *ReviewRepo) DueByUser(ctx context.Context, userID string, limit int) ([]model.Review, error) {
-	const q = `
-		SELECT id, user_id, card_id, next_due, last_result, streak, ease_factor, interval_days, updated_at
-		FROM reviews
-		WHERE user_id = $1 AND next_due <= now()
-		ORDER BY next_due
-		LIMIT $2`
-
-	rows, err := r.db.QueryContext(ctx, q, userID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("review due list: %w", err)
-	}
-	defer rows.Close()
-
-	var reviews []model.Review
-	for rows.Next() {
-		var rv model.Review
-		if err := rows.Scan(&rv.ID, &rv.UserID, &rv.CardID, &rv.NextDue, &rv.LastResult,
-			&rv.Streak, &rv.EaseFactor, &rv.IntervalDays, &rv.UpdatedAt); err != nil {
-			return nil, fmt.Errorf("review scan: %w", err)
-		}
-		reviews = append(reviews, rv)
-	}
-	return reviews, rows.Err()
-}
