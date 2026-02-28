@@ -6,7 +6,9 @@ type DeckWithCounts struct {
 	ID          string     `json:"id"`
 	Name        string     `json:"name"`
 	Description *string    `json:"description,omitempty"`
-	Subject     *string    `json:"subject,omitempty"` // discipline grouping
+	Subject     *string    `json:"subject,omitempty"`
+	IsActive    bool       `json:"is_active"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	TotalCards  int        `json:"total_cards"`
 	DueNow      int        `json:"due_now"`

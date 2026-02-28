@@ -16,15 +16,23 @@
     var emptyEl      = document.getElementById("empty-cards");
     var paginationEl = document.getElementById("pagination");
 
+    var deckStatusBadge    = document.getElementById("deck-status-badge");
     var btnRenameDeck      = document.getElementById("btn-rename-deck");
     var renameForm         = document.getElementById("rename-form");
     var renameNameEl       = document.getElementById("rename-name");
     var renameSubjectEl    = document.getElementById("rename-subject");
     var renameSubjectDl    = document.getElementById("rename-subject-suggestions");
     var renameDescEl       = document.getElementById("rename-desc");
+    var renameActiveEl     = document.getElementById("rename-active");
+    var toggleActiveLbl    = document.getElementById("toggle-active-lbl");
+    var renameExpiresEl    = document.getElementById("rename-expires");
+    var btnClearExpiry     = document.getElementById("btn-clear-expiry");
     var renameError        = document.getElementById("rename-error");
     var btnRenameSave      = document.getElementById("btn-rename-save");
     var btnRenameCancel    = document.getElementById("btn-rename-cancel");
+
+    // Track current deck state for patch operations
+    var currentDeck = null;
 
     var editModal      = document.getElementById("edit-modal");
     var modalClose     = document.getElementById("modal-close");
@@ -77,16 +85,22 @@
 
     /* ── Load cards ──────────────────────────────── */
     function loadCards() {
-        // Fetch up to 100 cards from the paginated API.
-        // answer is excluded from the list; fetched individually on edit.
-        api.get("/api/content/cards?deckId=" + deckId + "&limit=100")
-            .then(function (res) {
-                if (!res.ok) throw new Error();
-                return res.json();
-            })
-            .then(function (page) {
+        // Fetch deck details and cards in parallel
+        Promise.all([
+            api.get("/api/content/decks/" + deckId).then(function (r) { return r.ok ? r.json() : null; }),
+            api.get("/api/content/cards?deckId=" + deckId + "&limit=100")
+                .then(function (res) { if (!res.ok) throw new Error(); return res.json(); })
+        ])
+            .then(function (results) {
+                var deck = results[0];
+                var page = results[1];
                 spinnerEl.classList.add("hidden");
                 deckContent.classList.remove("hidden");
+
+                if (deck) {
+                    currentDeck = deck;
+                    renderStatusBadge(deck);
+                }
 
                 // Defensively handle both {items:[]} and unexpected shapes.
                 // Go serializes nil slice as null; guard against that.
@@ -98,7 +112,7 @@
 
                 applyFilter();
             })
-            .catch(function (err) {
+            .catch(function () {
                 spinnerEl.classList.add("hidden");
                 deckContent.classList.remove("hidden");
                 deckTitle.textContent = deckName || "Deck";
@@ -306,27 +320,53 @@
             .finally(function () { btnDeleteCard.disabled = false; });
     });
 
-    /* ── Rename deck ─────────────────────────────── */
+    /* ── Toggle label update ─────────────────────── */
+    if (renameActiveEl) {
+        renameActiveEl.addEventListener("change", function () {
+            toggleActiveLbl.textContent = renameActiveEl.checked ? "Deck ativo" : "Deck inativo";
+        });
+    }
+    if (btnClearExpiry) {
+        btnClearExpiry.addEventListener("click", function () {
+            renameExpiresEl.value = "";
+        });
+    }
+
+    /* ── Edit deck ───────────────────────────────── */
     btnRenameDeck.addEventListener("click", function () {
         renameError.classList.add("hidden");
-        renameNameEl.value    = deckName || "";
-        renameSubjectEl.value = "";
-        renameDescEl.value    = "";
+        renameNameEl.value      = deckName || "";
+        renameSubjectEl.value   = "";
+        renameDescEl.value      = "";
+        renameActiveEl.checked  = true;
+        renameExpiresEl.value   = "";
+        toggleActiveLbl.textContent = "Deck ativo";
 
         // Fetch current deck info to prefill all fields
         api.get("/api/content/decks/" + deckId)
             .then(function (res) { return res.ok ? res.json() : null; })
             .then(function (deck) {
-                if (deck) {
-                    renameNameEl.value    = deck.name        || deckName || "";
-                    renameSubjectEl.value = deck.subject     || "";
-                    renameDescEl.value    = deck.description || "";
+                if (!deck) return;
+                currentDeck = deck;
+                renameNameEl.value     = deck.name        || deckName || "";
+                renameSubjectEl.value  = deck.subject     || "";
+                renameDescEl.value     = deck.description || "";
+                renameActiveEl.checked = deck.is_active !== false;
+                toggleActiveLbl.textContent = renameActiveEl.checked ? "Deck ativo" : "Deck inativo";
+                if (deck.expires_at) {
+                    // datetime-local expects "YYYY-MM-DDTHH:mm" in local time
+                    var d = new Date(deck.expires_at);
+                    var pad = function (n) { return String(n).padStart(2, "0"); };
+                    renameExpiresEl.value =
+                        d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+                        "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
                 }
+                renderStatusBadge(deck);
             })
             .catch(function () { /* non-critical; keep deckName prefill */ });
 
-        // Also populate datalist with existing subjects from page decks list
-        if (renameSubjectDl) {
+        // Populate subjects datalist
+        if (renameSubjectDl && renameSubjectDl.options.length === 0) {
             api.get("/api/decks?limit=100")
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (page) {
@@ -363,32 +403,65 @@
         renameError.classList.add("hidden");
         btnRenameSave.disabled = true;
 
-        var body = { name: newName };
+        // PUT for name / subject / description
+        var putBody = { name: newName };
         var subj = renameSubjectEl.value.trim();
-        if (subj) body.subject = subj;
+        putBody.subject = subj || null;
         var desc = renameDescEl.value.trim();
-        if (desc) body.description = desc;
+        if (desc) putBody.description = desc;
 
-        api.put("/api/content/decks/" + deckId, body)
-            .then(function (res) {
-                if (!res.ok) return res.json().then(function (e) { throw new Error(e.detail || "erro"); });
-                return res.json();
-            })
-            .then(function (deck) {
-                deckName = deck.name;
-                // Update UI
-                deckTitle.textContent = deck.name;
-                var topbarDeckName = document.getElementById("topbar-deck-name");
-                if (topbarDeckName) topbarDeckName.textContent = deck.name;
-                renameForm.classList.add("hidden");
-                toast("Deck renomeado com sucesso!", "ok");
-            })
-            .catch(function (err) {
-                renameError.textContent = err.message || "Erro ao renomear deck.";
-                renameError.classList.remove("hidden");
-            })
-            .finally(function () { btnRenameSave.disabled = false; });
+        // PATCH for is_active / expires_at
+        var patchBody = { is_active: renameActiveEl.checked };
+        var expiresVal = renameExpiresEl.value;
+        if (expiresVal) {
+            // datetime-local gives local time; convert to ISO string with timezone
+            patchBody.expires_at = new Date(expiresVal).toISOString();
+        } else {
+            patchBody.expires_at = ""; // clear
+        }
+
+        Promise.all([
+            api.put("/api/content/decks/" + deckId, putBody)
+                .then(function (r) { return r.ok ? r.json() : r.json().then(function (e) { throw new Error(e.detail || "erro ao salvar"); }); }),
+            api.patch("/api/content/decks/" + deckId, patchBody)
+                .then(function (r) { return r.ok ? r.json() : r.json().then(function (e) { throw new Error(e.detail || "erro ao salvar"); }); })
+        ])
+        .then(function (results) {
+            var deck = results[1]; // PATCH returns updated deck with is_active/expires_at
+            deck.name = results[0].name; // merge name from PUT
+            currentDeck = deck;
+            deckName = deck.name;
+            deckTitle.textContent = deck.name;
+            var topbarDeckName = document.getElementById("topbar-deck-name");
+            if (topbarDeckName) topbarDeckName.textContent = deck.name;
+            renderStatusBadge(deck);
+            renameForm.classList.add("hidden");
+            toast("Deck atualizado!", "ok");
+        })
+        .catch(function (err) {
+            renameError.textContent = err.message || "Erro ao salvar.";
+            renameError.classList.remove("hidden");
+        })
+        .finally(function () { btnRenameSave.disabled = false; });
     });
+
+    /* ── Status badge ────────────────────────────── */
+    function renderStatusBadge(deck) {
+        if (!deckStatusBadge) return;
+        var isActive   = deck.is_active !== false;
+        var isExpired  = deck.expires_at && new Date(deck.expires_at) <= new Date();
+        if (!isActive) {
+            deckStatusBadge.innerHTML = '<span class="badge badge-inactive">Inativo</span>';
+        } else if (isExpired) {
+            deckStatusBadge.innerHTML = '<span class="badge badge-expired">Expirado</span>';
+        } else if (deck.expires_at) {
+            var d = new Date(deck.expires_at);
+            deckStatusBadge.innerHTML = '<span class="badge badge-expiring" title="Expira em ' +
+                d.toLocaleDateString("pt-BR") + '">Expira ' + d.toLocaleDateString("pt-BR") + '</span>';
+        } else {
+            deckStatusBadge.innerHTML = '';
+        }
+    }
 
     /* ── Helpers ─────────────────────────────────── */
     function findCard(id) {

@@ -102,6 +102,31 @@ func (h *ContentHandler) UpdateDeck(w http.ResponseWriter, r *http.Request) {
 	JSON(w, http.StatusOK, deck)
 }
 
+func (h *ContentHandler) PatchDeck(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := validate.UUID("id", id); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var req model.PatchDeckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	deck, err := h.svc.PatchDeck(r.Context(), id, req)
+	if errors.Is(err, sql.ErrNoRows) {
+		Error(w, http.StatusNotFound, "deck not found")
+		return
+	}
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	JSON(w, http.StatusOK, deck)
+}
+
 func (h *ContentHandler) DeleteDeck(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := validate.UUID("id", id); err != nil {

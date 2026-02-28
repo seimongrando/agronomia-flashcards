@@ -43,7 +43,18 @@ func (h *StudyHandler) ListDecks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	page, err := h.svc.ListDecks(r.Context(), info.UserID, cursorName, cursorID, limit)
+	// Professors and admins see all decks (including inactive/expired) for management.
+	// Students only see active, non-expired decks.
+	roles := info.Roles
+	showAll := false
+	for _, role := range roles {
+		if role == "professor" || role == "admin" {
+			showAll = true
+			break
+		}
+	}
+
+	page, err := h.svc.ListDecks(r.Context(), info.UserID, cursorName, cursorID, limit, showAll)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "failed to list decks")
 		return

@@ -3,13 +3,19 @@ package model
 type CreateDeckRequest struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description"`
-	Subject     *string `json:"subject"` // optional discipline (e.g. "Química do Solo")
+	Subject     *string `json:"subject"`
 }
 
 type UpdateDeckRequest struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description"`
 	Subject     *string `json:"subject"`
+}
+
+// PatchDeckRequest allows partial updates — only provided (non-nil) fields are applied.
+type PatchDeckRequest struct {
+	IsActive  *bool   `json:"is_active"`
+	ExpiresAt *string `json:"expires_at"` // RFC3339 string or "" to clear
 }
 
 type CreateCardRequest struct {

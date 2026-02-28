@@ -22,6 +22,7 @@
         get:    function (url)       { return request("GET",    url); },
         post:   function (url, body) { return request("POST",   url, body); },
         put:    function (url, body) { return request("PUT",    url, body); },
+        patch:  function (url, body) { return request("PATCH",  url, body); },
         del:    function (url)       { return request("DELETE", url); },
         upload: function (url, file) {
             var fd = new FormData();

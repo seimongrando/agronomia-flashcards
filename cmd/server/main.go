@@ -16,8 +16,10 @@ import (
 	"webapp/internal/config"
 	"webapp/internal/handler"
 	"webapp/internal/middleware"
+	"webapp/internal/migrate"
 	"webapp/internal/repository"
 	"webapp/internal/service"
+	"webapp/migrations"
 	"webapp/web"
 )
 
@@ -35,6 +37,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+
+	// Run pending SQL migrations before accepting traffic.
+	// Safe to call on every startup — already-applied files are skipped.
+	if err := migrate.Run(context.Background(), db, migrations.FS); err != nil {
+		logger.Error("migration failed", "error", err)
+		os.Exit(1)
+	}
 
 	// Repositories
 	userRepo := repository.NewUserRepo(db)
@@ -100,6 +109,7 @@ func main() {
 	mux.Handle("POST /api/content/decks", contentMgmt(http.HandlerFunc(contentH.CreateDeck)))
 	mux.Handle("GET /api/content/decks/{id}", contentMgmt(http.HandlerFunc(contentH.GetDeck)))
 	mux.Handle("PUT /api/content/decks/{id}", contentMgmt(http.HandlerFunc(contentH.UpdateDeck)))
+	mux.Handle("PATCH /api/content/decks/{id}", contentMgmt(http.HandlerFunc(contentH.PatchDeck)))
 	mux.Handle("DELETE /api/content/decks/{id}", contentMgmt(http.HandlerFunc(contentH.DeleteDeck)))
 	mux.Handle("POST /api/content/cards", contentMgmt(http.HandlerFunc(contentH.CreateCard)))
 	mux.Handle("PUT /api/content/cards/{id}", contentMgmt(http.HandlerFunc(contentH.UpdateCard)))

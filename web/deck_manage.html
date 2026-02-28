@@ -33,39 +33,63 @@
                     <h2 id="deck-title" style="font-size:1.1rem;font-weight:700"></h2>
                     <span id="deck-subtitle" class="text-muted"></span>
                 </div>
-                <button id="btn-rename-deck" class="btn btn-outline btn-sm" aria-label="Renomear deck"
-                        style="display:flex;align-items:center;gap:.35rem">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
-                              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
-                              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    Renomear
-                </button>
+                <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                    <span id="deck-status-badge"></span>
+                    <button id="btn-rename-deck" class="btn btn-outline btn-sm" aria-label="Editar deck"
+                            style="display:flex;align-items:center;gap:.35rem">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Editar
+                    </button>
+                </div>
             </div>
 
-            <!-- Inline rename form -->
+            <!-- Inline edit form -->
             <div id="rename-form" class="card hidden" style="padding:.9rem 1rem;margin-bottom:1rem">
-                <div class="field">
-                    <label for="rename-name">Nome do deck *</label>
-                    <input id="rename-name" type="text" class="input" maxlength="80"
-                           placeholder="Nome do deck (máx. 80 caracteres)" aria-required="true">
-                </div>
-                <div class="field">
-                    <label for="rename-subject">Matéria (opcional)</label>
-                    <input id="rename-subject" type="text" class="input" maxlength="80"
-                           placeholder="Ex: Química do Solo, Fitotecnia…"
-                           list="rename-subject-suggestions">
-                    <datalist id="rename-subject-suggestions"></datalist>
+                <div class="field-row mt-1" style="flex-wrap:wrap">
+                    <div class="field" style="flex:2;min-width:160px">
+                        <label for="rename-name">Nome do deck *</label>
+                        <input id="rename-name" type="text" class="input" maxlength="80"
+                               placeholder="Nome do deck (máx. 80 caracteres)" aria-required="true">
+                    </div>
+                    <div class="field" style="flex:1;min-width:140px">
+                        <label for="rename-subject">Matéria (opcional)</label>
+                        <input id="rename-subject" type="text" class="input" maxlength="80"
+                               placeholder="Ex: Fitotecnia"
+                               list="rename-subject-suggestions">
+                        <datalist id="rename-subject-suggestions"></datalist>
+                    </div>
                 </div>
                 <div class="field">
                     <label for="rename-desc">Descrição (opcional)</label>
                     <input id="rename-desc" type="text" class="input" maxlength="200"
                            placeholder="Breve descrição do conteúdo do deck">
                 </div>
+
+                <!-- Status & expiration -->
+                <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;margin-top:.25rem">
+                    <label class="toggle-label" style="display:flex;align-items:center;gap:.5rem;cursor:pointer;user-select:none">
+                        <input id="rename-active" type="checkbox" class="toggle-input" checked aria-label="Deck ativo">
+                        <span class="toggle-track" aria-hidden="true"></span>
+                        <span id="toggle-active-lbl">Deck ativo</span>
+                    </label>
+                    <div class="field" style="margin:0;flex:1;min-width:180px">
+                        <label for="rename-expires" style="font-size:.82rem">Expira em (opcional)</label>
+                        <input id="rename-expires" type="datetime-local" class="input input-sm"
+                               title="Deixe em branco para não expirar automaticamente">
+                    </div>
+                    <button id="btn-clear-expiry" class="btn btn-outline btn-sm" type="button"
+                            style="align-self:flex-end" title="Remover data de expiração">
+                        Remover expiração
+                    </button>
+                </div>
+
                 <div id="rename-error" class="alert alert-error hidden" role="alert"></div>
-                <div style="display:flex;gap:.5rem;margin-top:.5rem">
+                <div style="display:flex;gap:.5rem;margin-top:.75rem">
                     <button id="btn-rename-save" class="btn btn-primary btn-sm">Salvar</button>
                     <button id="btn-rename-cancel" class="btn btn-outline btn-sm">Cancelar</button>
                 </div>

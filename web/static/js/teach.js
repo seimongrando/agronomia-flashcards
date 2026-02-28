@@ -109,13 +109,17 @@
             var decks = (page && page.items) ? page.items : (page || []);
             var subjects = {};
             for (var i = 0; i < decks.length; i++) {
+                var d = decks[i];
                 var opt = document.createElement("option");
-                opt.value = decks[i].id;
-                opt.textContent = decks[i].subject
-                    ? decks[i].name + " [" + decks[i].subject + "]"
-                    : decks[i].name;
+                opt.value = d.id;
+                var label = d.name;
+                if (d.subject) label += " [" + d.subject + "]";
+                var isExpired = d.expires_at && new Date(d.expires_at) <= new Date();
+                if (!d.is_active) label += " — Inativo";
+                else if (isExpired)  label += " — Expirado";
+                opt.textContent = label;
                 deckSelect.appendChild(opt);
-                if (decks[i].subject) subjects[decks[i].subject] = true;
+                if (d.subject) subjects[d.subject] = true;
             }
             // Populate autocomplete datalist
             if (subjectDatalist) {
@@ -332,11 +336,14 @@
         api.get("/api/decks").then(function (res) { return res.json(); }).then(function (page) {
             var decks = (page && page.items) ? page.items : (page || []);
             for (var i = 0; i < decks.length; i++) {
+                var d = decks[i];
                 var opt = document.createElement("option");
-                opt.value = decks[i].id;
-                opt.textContent = decks[i].subject
-                    ? decks[i].name + " [" + decks[i].subject + "]"
-                    : decks[i].name;
+                opt.value = d.id;
+                var label = d.subject ? d.name + " [" + d.subject + "]" : d.name;
+                var isExpired = d.expires_at && new Date(d.expires_at) <= new Date();
+                if (!d.is_active)   label += " — Inativo";
+                else if (isExpired) label += " — Expirado";
+                opt.textContent = label;
                 deckSelect.appendChild(opt);
             }
             if (prev) { deckSelect.value = prev; deckSelect.dispatchEvent(new Event("change")); }

@@ -112,16 +112,18 @@ func NewStudyService(study *repository.StudyRepo, cards *repository.CardRepo, re
 }
 
 // ListDecks returns a paginated page of decks ordered by (name ASC).
-// Pass empty cursorName/cursorID for the first page.
+// showAll=true includes inactive/expired decks (professor/admin view).
 func (s *StudyService) ListDecks(
 	ctx context.Context,
 	userID, cursorName, cursorID string,
 	limit int,
+	showAll bool,
 ) (pagination.Page[model.DeckWithCounts], error) {
 	decks, err := s.study.ListDecksWithCountsPaged(ctx, repository.DeckListParams{
 		UserID:     userID,
 		CursorName: cursorName,
 		CursorID:   cursorID,
+		ShowAll:    showAll,
 		Limit:      limit + 1, // one extra to detect next page
 	})
 	if err != nil {

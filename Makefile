@@ -5,7 +5,17 @@
 #
 # Quick start:
 #   cp .env.local.example .env.local   # fill in Google OAuth credentials
-#   make dev                           # DB → migrations → server
+#   make dev                           # DB → wait → server (migrations run automatically)
+#
+# Migrations:
+#   The Go server applies pending migrations automatically on startup via the
+#   embedded runner (internal/migrate). You do NOT need to run `make migrate-up`
+#   for normal development — just restart the server.
+#
+#   Use `make migrate-up` / `make migrate-down` only when you need to:
+#     • Roll back a migration manually
+#     • Inspect migration status (make migrate-status)
+#     • Create a new migration file (make migrate-create name=add_foo)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 .DEFAULT_GOAL := help
@@ -179,11 +189,11 @@ migrate-status: ensure-migrate ## Print current migration version
 
 # ── Running ───────────────────────────────────────────────────────────────────
 .PHONY: run
-run: ## Start the Go server (env loaded from .env.local)
+run: ## Start the Go server — migrations run automatically on startup
 	go run ./cmd/server
 
 .PHONY: dev
-dev: docker-up db-wait migrate-up run ## 🚀 Full local bootstrap: DB → migrations → server
+dev: docker-up db-wait run ## 🚀 Full local bootstrap: DB → wait → server (auto-migrates)
 
 # ── Admin helpers ─────────────────────────────────────────────────────────────
 .PHONY: seed-admin

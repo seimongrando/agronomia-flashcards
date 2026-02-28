@@ -19,11 +19,14 @@ type DeckListParams struct {
 	CursorName string // empty = first page
 	CursorID   string
 	Limit      int
+	// ShowAll skips the is_active / expires_at filter.
+	// Use true for professor/admin views; false (default) for student home.
+	ShowAll bool
 }
 
 // ListDecksWithCountsPaged returns a page of decks ordered by (name ASC, id ASC),
 // enriched with per-user card counts.
-// It fetches Limit+1 rows so the caller can detect whether a next page exists.
+// When ShowAll is false, inactive and expired decks are hidden (student view).
 func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListParams) ([]model.DeckWithCounts, error) {
 	var sb strings.Builder
 	var args []any
@@ -35,7 +38,7 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 
 	uid := nextArg(p.UserID)
 	sb.WriteString(`
-		SELECT d.id, d.name, d.description, d.subject, d.created_at,
+		SELECT d.id, d.name, d.description, d.subject, d.is_active, d.expires_at, d.created_at,
 		       COUNT(c.id)::int AS total_cards,
 		       COUNT(CASE WHEN c.id IS NOT NULL AND (rv.id IS NULL OR rv.next_due <= now()) THEN 1 END)::int AS due_now,
 		       MAX(rv.updated_at) AS last_studied,
@@ -45,6 +48,11 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 		LEFT JOIN reviews rv ON rv.card_id = c.id AND rv.user_id = ` + uid + `
 		WHERE 1=1`)
 
+	// Students only see enabled, non-expired decks
+	if !p.ShowAll {
+		sb.WriteString(` AND d.is_active = true AND (d.expires_at IS NULL OR d.expires_at > now())`)
+	}
+
 	if p.CursorName != "" || p.CursorID != "" {
 		nameArg := nextArg(p.CursorName)
 		idArg := nextArg(p.CursorID)
@@ -53,8 +61,7 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 			nameArg, nameArg, idArg)
 	}
 
-	sb.WriteString(` GROUP BY d.id, d.name, d.description, d.created_at`)
-	sb.WriteString(` ORDER BY d.name ASC, d.id ASC LIMIT `)
+	sb.WriteString(` GROUP BY d.id ORDER BY d.name ASC, d.id ASC LIMIT `)
 	sb.WriteString(nextArg(p.Limit))
 
 	rows, err := r.db.QueryContext(ctx, sb.String(), args...)
@@ -67,12 +74,18 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 	for rows.Next() {
 		var d model.DeckWithCounts
 		var desc, subj sql.NullString
+		var exp sql.NullTime
 		var lastStudied, nextRv sql.NullTime
-		if err := rows.Scan(&d.ID, &d.Name, &desc, &subj, &d.CreatedAt, &d.TotalCards, &d.DueNow, &lastStudied, &nextRv); err != nil {
+		if err := rows.Scan(&d.ID, &d.Name, &desc, &subj, &d.IsActive, &exp, &d.CreatedAt,
+			&d.TotalCards, &d.DueNow, &lastStudied, &nextRv); err != nil {
 			return nil, fmt.Errorf("deck counts scan: %w", err)
 		}
 		d.Description = toStringPtr(desc)
 		d.Subject = toStringPtr(subj)
+		if exp.Valid {
+			t := exp.Time
+			d.ExpiresAt = &t
+		}
 		if lastStudied.Valid {
 			t := lastStudied.Time
 			d.LastStudied = &t

@@ -42,6 +42,27 @@ func (s *ContentService) GetDeck(ctx context.Context, id string) (model.Deck, er
 	return s.decks.FindByID(ctx, id)
 }
 
+// PatchDeck updates is_active and/or expires_at on a deck.
+// req.ExpiresAt == "" clears the expiry; a valid RFC3339 string sets it; nil leaves it unchanged.
+func (s *ContentService) PatchDeck(ctx context.Context, id string, req model.PatchDeckRequest) (model.Deck, error) {
+	var expiresAt *time.Time
+	clearExpiry := false
+
+	if req.ExpiresAt != nil {
+		if *req.ExpiresAt == "" {
+			clearExpiry = true
+		} else {
+			t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
+			if err != nil {
+				return model.Deck{}, fmt.Errorf("invalid expires_at format, use RFC3339: %w", err)
+			}
+			expiresAt = &t
+		}
+	}
+
+	return s.decks.Patch(ctx, id, req.IsActive, expiresAt, clearExpiry)
+}
+
 func (s *ContentService) DeleteDeck(ctx context.Context, id string) error {
 	count, err := s.decks.CardCount(ctx, id)
 	if err != nil {
