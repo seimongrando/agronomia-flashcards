@@ -35,7 +35,7 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 
 	uid := nextArg(p.UserID)
 	sb.WriteString(`
-		SELECT d.id, d.name, d.description, d.created_at,
+		SELECT d.id, d.name, d.description, d.subject, d.created_at,
 		       COUNT(c.id)::int AS total_cards,
 		       COUNT(CASE WHEN c.id IS NOT NULL AND (rv.id IS NULL OR rv.next_due <= now()) THEN 1 END)::int AS due_now,
 		       MAX(rv.updated_at) AS last_studied,
@@ -66,12 +66,13 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 	var out []model.DeckWithCounts
 	for rows.Next() {
 		var d model.DeckWithCounts
-		var desc sql.NullString
+		var desc, subj sql.NullString
 		var lastStudied, nextRv sql.NullTime
-		if err := rows.Scan(&d.ID, &d.Name, &desc, &d.CreatedAt, &d.TotalCards, &d.DueNow, &lastStudied, &nextRv); err != nil {
+		if err := rows.Scan(&d.ID, &d.Name, &desc, &subj, &d.CreatedAt, &d.TotalCards, &d.DueNow, &lastStudied, &nextRv); err != nil {
 			return nil, fmt.Errorf("deck counts scan: %w", err)
 		}
 		d.Description = toStringPtr(desc)
+		d.Subject = toStringPtr(subj)
 		if lastStudied.Valid {
 			t := lastStudied.Time
 			d.LastStudied = &t

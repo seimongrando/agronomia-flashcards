@@ -3,11 +3,13 @@ package model
 type CreateDeckRequest struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description"`
+	Subject     *string `json:"subject"` // optional discipline (e.g. "Química do Solo")
 }
 
 type UpdateDeckRequest struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description"`
+	Subject     *string `json:"subject"`
 }
 
 type CreateCardRequest struct {

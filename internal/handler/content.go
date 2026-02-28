@@ -42,7 +42,7 @@ func (h *ContentHandler) CreateDeck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deck, err := h.svc.CreateDeck(r.Context(), name, req.Description)
+	deck, err := h.svc.CreateDeck(r.Context(), name, req.Description, req.Subject)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "failed to create deck")
 		return
@@ -90,7 +90,7 @@ func (h *ContentHandler) UpdateDeck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deck, err := h.svc.UpdateDeck(r.Context(), id, name, req.Description)
+	deck, err := h.svc.UpdateDeck(r.Context(), id, name, req.Description, req.Subject)
 	if errors.Is(err, sql.ErrNoRows) {
 		Error(w, http.StatusNotFound, "deck not found")
 		return

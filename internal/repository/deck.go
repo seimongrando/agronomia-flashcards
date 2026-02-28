@@ -12,16 +12,17 @@ type DeckRepo struct{ db DBTX }
 
 func NewDeckRepo(db DBTX) *DeckRepo { return &DeckRepo{db: db} }
 
-func (r *DeckRepo) Create(ctx context.Context, name string, description *string) (model.Deck, error) {
-	const q = `INSERT INTO decks (name, description) VALUES ($1, $2)
-	           RETURNING id, name, description, created_at`
+func (r *DeckRepo) Create(ctx context.Context, name string, description, subject *string) (model.Deck, error) {
+	const q = `INSERT INTO decks (name, description, subject) VALUES ($1, $2, $3)
+	           RETURNING id, name, description, subject, created_at`
 
 	var d model.Deck
-	var desc sql.NullString
-	err := r.db.QueryRowContext(ctx, q, name, toNullString(description)).Scan(
-		&d.ID, &d.Name, &desc, &d.CreatedAt,
+	var desc, subj sql.NullString
+	err := r.db.QueryRowContext(ctx, q, name, toNullString(description), toNullString(subject)).Scan(
+		&d.ID, &d.Name, &desc, &subj, &d.CreatedAt,
 	)
 	d.Description = toStringPtr(desc)
+	d.Subject = toStringPtr(subj)
 	if err != nil {
 		return model.Deck{}, fmt.Errorf("deck create: %w", err)
 	}
@@ -29,12 +30,13 @@ func (r *DeckRepo) Create(ctx context.Context, name string, description *string)
 }
 
 func (r *DeckRepo) FindByID(ctx context.Context, id string) (model.Deck, error) {
-	const q = `SELECT id, name, description, created_at FROM decks WHERE id = $1`
+	const q = `SELECT id, name, description, subject, created_at FROM decks WHERE id = $1`
 
 	var d model.Deck
-	var desc sql.NullString
-	err := r.db.QueryRowContext(ctx, q, id).Scan(&d.ID, &d.Name, &desc, &d.CreatedAt)
+	var desc, subj sql.NullString
+	err := r.db.QueryRowContext(ctx, q, id).Scan(&d.ID, &d.Name, &desc, &subj, &d.CreatedAt)
 	d.Description = toStringPtr(desc)
+	d.Subject = toStringPtr(subj)
 	if err != nil {
 		return model.Deck{}, fmt.Errorf("deck find by id: %w", err)
 	}
@@ -42,14 +44,14 @@ func (r *DeckRepo) FindByID(ctx context.Context, id string) (model.Deck, error) 
 }
 
 // FindByName returns the deck with the given name, or sql.ErrNoRows if absent.
-// Unlike FindOrCreateByName, this method never creates a new deck.
 func (r *DeckRepo) FindByName(ctx context.Context, name string) (model.Deck, error) {
-	const q = `SELECT id, name, description, created_at FROM decks WHERE name = $1`
+	const q = `SELECT id, name, description, subject, created_at FROM decks WHERE name = $1`
 
 	var d model.Deck
-	var desc sql.NullString
-	err := r.db.QueryRowContext(ctx, q, name).Scan(&d.ID, &d.Name, &desc, &d.CreatedAt)
+	var desc, subj sql.NullString
+	err := r.db.QueryRowContext(ctx, q, name).Scan(&d.ID, &d.Name, &desc, &subj, &d.CreatedAt)
 	d.Description = toStringPtr(desc)
+	d.Subject = toStringPtr(subj)
 	if err != nil {
 		return model.Deck{}, fmt.Errorf("deck find by name: %w", err)
 	}
@@ -57,7 +59,7 @@ func (r *DeckRepo) FindByName(ctx context.Context, name string) (model.Deck, err
 }
 
 func (r *DeckRepo) List(ctx context.Context) ([]model.Deck, error) {
-	const q = `SELECT id, name, description, created_at FROM decks ORDER BY name`
+	const q = `SELECT id, name, description, subject, created_at FROM decks ORDER BY subject NULLS LAST, name`
 
 	rows, err := r.db.QueryContext(ctx, q)
 	if err != nil {
@@ -68,27 +70,29 @@ func (r *DeckRepo) List(ctx context.Context) ([]model.Deck, error) {
 	var decks []model.Deck
 	for rows.Next() {
 		var d model.Deck
-		var desc sql.NullString
-		if err := rows.Scan(&d.ID, &d.Name, &desc, &d.CreatedAt); err != nil {
+		var desc, subj sql.NullString
+		if err := rows.Scan(&d.ID, &d.Name, &desc, &subj, &d.CreatedAt); err != nil {
 			return nil, fmt.Errorf("deck scan: %w", err)
 		}
 		d.Description = toStringPtr(desc)
+		d.Subject = toStringPtr(subj)
 		decks = append(decks, d)
 	}
 	return decks, rows.Err()
 }
 
-func (r *DeckRepo) Update(ctx context.Context, id, name string, description *string) (model.Deck, error) {
-	const q = `UPDATE decks SET name = $2, description = $3
+func (r *DeckRepo) Update(ctx context.Context, id, name string, description, subject *string) (model.Deck, error) {
+	const q = `UPDATE decks SET name = $2, description = $3, subject = $4
 	           WHERE id = $1
-	           RETURNING id, name, description, created_at`
+	           RETURNING id, name, description, subject, created_at`
 
 	var d model.Deck
-	var desc sql.NullString
-	err := r.db.QueryRowContext(ctx, q, id, name, toNullString(description)).Scan(
-		&d.ID, &d.Name, &desc, &d.CreatedAt,
+	var desc, subj sql.NullString
+	err := r.db.QueryRowContext(ctx, q, id, name, toNullString(description), toNullString(subject)).Scan(
+		&d.ID, &d.Name, &desc, &subj, &d.CreatedAt,
 	)
 	d.Description = toStringPtr(desc)
+	d.Subject = toStringPtr(subj)
 	if err != nil {
 		return model.Deck{}, fmt.Errorf("deck update: %w", err)
 	}
@@ -107,25 +111,22 @@ func (r *DeckRepo) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// FindOrCreateByName upserts a deck by name. It returns the deck and a boolean
-// wasCreated that is true when the deck did not previously exist.
-//
-// Internally this uses PostgreSQL's xmax trick: for a freshly inserted row
-// xmax is 0 (no prior UPDATE transaction); for a row that went through the
-// ON CONFLICT DO UPDATE path xmax is the current transaction ID (non-zero).
+// FindOrCreateByName upserts a deck by name (used during CSV import).
+// Subject is intentionally not set here — it is assigned manually by the professor.
 func (r *DeckRepo) FindOrCreateByName(ctx context.Context, name string) (model.Deck, bool, error) {
 	const q = `
 		INSERT INTO decks (name) VALUES ($1)
 		ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-		RETURNING id, name, description, created_at, (xmax = 0) AS was_created`
+		RETURNING id, name, description, subject, created_at, (xmax = 0) AS was_created`
 
 	var d model.Deck
-	var desc sql.NullString
+	var desc, subj sql.NullString
 	var wasCreated bool
 	err := r.db.QueryRowContext(ctx, q, name).Scan(
-		&d.ID, &d.Name, &desc, &d.CreatedAt, &wasCreated,
+		&d.ID, &d.Name, &desc, &subj, &d.CreatedAt, &wasCreated,
 	)
 	d.Description = toStringPtr(desc)
+	d.Subject = toStringPtr(subj)
 	if err != nil {
 		return model.Deck{}, false, fmt.Errorf("deck find or create: %w", err)
 	}

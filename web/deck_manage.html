@@ -53,13 +53,20 @@
                            placeholder="Nome do deck (máx. 80 caracteres)" aria-required="true">
                 </div>
                 <div class="field">
+                    <label for="rename-subject">Matéria (opcional)</label>
+                    <input id="rename-subject" type="text" class="input" maxlength="80"
+                           placeholder="Ex: Química do Solo, Fitotecnia…"
+                           list="rename-subject-suggestions">
+                    <datalist id="rename-subject-suggestions"></datalist>
+                </div>
+                <div class="field">
                     <label for="rename-desc">Descrição (opcional)</label>
                     <input id="rename-desc" type="text" class="input" maxlength="200"
                            placeholder="Breve descrição do conteúdo do deck">
                 </div>
                 <div id="rename-error" class="alert alert-error hidden" role="alert"></div>
                 <div style="display:flex;gap:.5rem;margin-top:.5rem">
-                    <button id="btn-rename-save" class="btn btn-primary btn-sm">Salvar nome</button>
+                    <button id="btn-rename-save" class="btn btn-primary btn-sm">Salvar</button>
                     <button id="btn-rename-cancel" class="btn btn-outline btn-sm">Cancelar</button>
                 </div>
             </div>

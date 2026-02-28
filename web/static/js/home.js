@@ -69,13 +69,14 @@
             var filtered = q
                 ? allDecks.filter(function (d) {
                     return d.name.toLowerCase().indexOf(q) >= 0 ||
-                           (d.description && d.description.toLowerCase().indexOf(q) >= 0);
+                           (d.description && d.description.toLowerCase().indexOf(q) >= 0) ||
+                           (d.subject && d.subject.toLowerCase().indexOf(q) >= 0);
                   })
                 : allDecks;
             if (filtered.length === 0) {
                 gridEl.innerHTML = '<p class="text-muted" style="padding:.5rem 0">Nenhum deck encontrado.</p>';
             } else {
-                renderDecks(filtered);
+                renderDecks(filtered, !!q);
             }
         }, 200));
     }
@@ -85,11 +86,68 @@
         return function () { clearTimeout(t); t = setTimeout(fn, ms); };
     }
 
-    function renderDecks(decks) {
-        var html = "";
-        for (var i = 0; i < decks.length; i++) {
-            html += renderDeckCard(decks[i]);
+    // Group decks by subject; decks with no subject go to a special "Outros" group at the end.
+    // When `flat` is true (search active) we skip grouping headers for a cleaner result view.
+    function renderDecks(decks, flat) {
+        if (flat) {
+            gridEl.innerHTML = decks.map(renderDeckCard).join("");
+            return;
         }
+
+        // Build ordered groups: subjects alphabetically, then null-subject group last
+        var groups   = {};   // subject -> [deck]
+        var order    = [];   // ordered subject keys
+        var noSubject = [];
+
+        decks.forEach(function (d) {
+            if (d.subject) {
+                if (!groups[d.subject]) { groups[d.subject] = []; order.push(d.subject); }
+                groups[d.subject].push(d);
+            } else {
+                noSubject.push(d);
+            }
+        });
+
+        order.sort(function (a, b) { return a.localeCompare(b, "pt"); });
+
+        var html = "";
+
+        // If every deck has a subject, don't show the "no subject" fallback at all
+        order.forEach(function (subj) {
+            html += '<div class="subject-group">' +
+                '<div class="subject-group__header">' +
+                    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                        '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                        '<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                    '</svg>' +
+                    '<span>' + app.esc(subj) + '</span>' +
+                '</div>' +
+                '<div class="deck-grid">' +
+                    groups[subj].map(renderDeckCard).join("") +
+                '</div>' +
+            '</div>';
+        });
+
+        if (noSubject.length > 0) {
+            var label = order.length > 0 ? "Sem matéria" : "";
+            if (label) {
+                html += '<div class="subject-group">' +
+                    '<div class="subject-group__header subject-group__header--muted">' +
+                        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                            '<path d="M4 6h16M4 10h16M4 14h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+                        '</svg>' +
+                        '<span>' + label + '</span>' +
+                    '</div>' +
+                    '<div class="deck-grid">' +
+                        noSubject.map(renderDeckCard).join("") +
+                    '</div>' +
+                '</div>';
+            } else {
+                // All ungrouped — plain grid
+                html += '<div class="deck-grid">' + noSubject.map(renderDeckCard).join("") + '</div>';
+            }
+        }
+
         gridEl.innerHTML = html;
     }
 

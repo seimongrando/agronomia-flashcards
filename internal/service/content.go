@@ -30,12 +30,12 @@ func NewContentService(
 
 // --- Deck CRUD ---
 
-func (s *ContentService) CreateDeck(ctx context.Context, name string, desc *string) (model.Deck, error) {
-	return s.decks.Create(ctx, name, desc)
+func (s *ContentService) CreateDeck(ctx context.Context, name string, desc, subject *string) (model.Deck, error) {
+	return s.decks.Create(ctx, name, desc, subject)
 }
 
-func (s *ContentService) UpdateDeck(ctx context.Context, id, name string, desc *string) (model.Deck, error) {
-	return s.decks.Update(ctx, id, name, desc)
+func (s *ContentService) UpdateDeck(ctx context.Context, id, name string, desc, subject *string) (model.Deck, error) {
+	return s.decks.Update(ctx, id, name, desc, subject)
 }
 
 func (s *ContentService) GetDeck(ctx context.Context, id string) (model.Deck, error) {

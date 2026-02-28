@@ -411,6 +411,8 @@ a { color: inherit; }
 .page-subtitle { font-size: .9rem; color: var(--text-secondary); }
 
 /* ── Deck grid (home) ────────────────────────────────────────────────────── */
+.deck-grid-root { display: flex; flex-direction: column; gap: 2rem; }
+
 .deck-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -421,6 +423,26 @@ a { color: inherit; }
 }
 @media (min-width: 900px) {
     .deck-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ── Subject group ───────────────────────────────────────────────────────── */
+.subject-group { display: flex; flex-direction: column; gap: .75rem; }
+
+.subject-group__header {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    font-size: .8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--primary);
+    padding-bottom: .4rem;
+    border-bottom: 2px solid var(--green-100);
+}
+.subject-group__header--muted {
+    color: var(--text-secondary);
+    border-bottom-color: var(--border);
 }
 
 .deck-card {

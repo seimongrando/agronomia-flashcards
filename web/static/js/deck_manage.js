@@ -16,13 +16,15 @@
     var emptyEl      = document.getElementById("empty-cards");
     var paginationEl = document.getElementById("pagination");
 
-    var btnRenameDeck  = document.getElementById("btn-rename-deck");
-    var renameForm     = document.getElementById("rename-form");
-    var renameNameEl   = document.getElementById("rename-name");
-    var renameDescEl   = document.getElementById("rename-desc");
-    var renameError    = document.getElementById("rename-error");
-    var btnRenameSave  = document.getElementById("btn-rename-save");
-    var btnRenameCancel = document.getElementById("btn-rename-cancel");
+    var btnRenameDeck      = document.getElementById("btn-rename-deck");
+    var renameForm         = document.getElementById("rename-form");
+    var renameNameEl       = document.getElementById("rename-name");
+    var renameSubjectEl    = document.getElementById("rename-subject");
+    var renameSubjectDl    = document.getElementById("rename-subject-suggestions");
+    var renameDescEl       = document.getElementById("rename-desc");
+    var renameError        = document.getElementById("rename-error");
+    var btnRenameSave      = document.getElementById("btn-rename-save");
+    var btnRenameCancel    = document.getElementById("btn-rename-cancel");
 
     var editModal      = document.getElementById("edit-modal");
     var modalClose     = document.getElementById("modal-close");
@@ -307,19 +309,41 @@
     /* ── Rename deck ─────────────────────────────── */
     btnRenameDeck.addEventListener("click", function () {
         renameError.classList.add("hidden");
-        renameNameEl.value = deckName || "";
-        renameDescEl.value = "";
+        renameNameEl.value    = deckName || "";
+        renameSubjectEl.value = "";
+        renameDescEl.value    = "";
 
-        // Fetch current deck info so description is not wiped
+        // Fetch current deck info to prefill all fields
         api.get("/api/content/decks/" + deckId)
             .then(function (res) { return res.ok ? res.json() : null; })
             .then(function (deck) {
                 if (deck) {
-                    renameNameEl.value = deck.name || deckName || "";
-                    renameDescEl.value = deck.description || "";
+                    renameNameEl.value    = deck.name        || deckName || "";
+                    renameSubjectEl.value = deck.subject     || "";
+                    renameDescEl.value    = deck.description || "";
                 }
             })
             .catch(function () { /* non-critical; keep deckName prefill */ });
+
+        // Also populate datalist with existing subjects from page decks list
+        if (renameSubjectDl) {
+            api.get("/api/decks?limit=100")
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (page) {
+                    if (!page) return;
+                    var items = page.items || page || [];
+                    var seen = {};
+                    items.forEach(function (d) {
+                        if (d.subject && !seen[d.subject]) {
+                            seen[d.subject] = true;
+                            var o = document.createElement("option");
+                            o.value = d.subject;
+                            renameSubjectDl.appendChild(o);
+                        }
+                    });
+                })
+                .catch(function () {});
+        }
 
         renameForm.classList.remove("hidden");
         renameNameEl.focus();
@@ -340,6 +364,8 @@
         btnRenameSave.disabled = true;
 
         var body = { name: newName };
+        var subj = renameSubjectEl.value.trim();
+        if (subj) body.subject = subj;
         var desc = renameDescEl.value.trim();
         if (desc) body.description = desc;
 

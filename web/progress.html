@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Progresso &mdash; Agronomia Flashcards</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="topbar" role="banner">
+    <div class="wrap">
+        <a href="/" class="topbar-brand" aria-label="Agronomia Flashcards – início">
+            <svg class="brand-icon" width="26" height="26" viewBox="0 0 24 24" fill="none"
+                 xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                <path d="M12 22V12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M12 13C13 10 16 8 19 8C19 11 16.5 13.5 12 13Z" fill="currentColor"/>
+                <path d="M12 17C11 14 8 12 5 12C5 15 7.5 17.5 12 17Z" fill="currentColor" opacity="0.6"/>
+                <path d="M9 22Q12 20.5 15 22" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" fill="none"/>
+            </svg>
+            <span class="brand-name">Agronomia<span class="brand-sub"> – Flashcards</span></span>
+        </a>
+        <div class="topbar-center" aria-hidden="true">Meu Progresso</div>
+        <div id="topbar-right" class="topbar-right"></div>
+    </div>
+</header>
+
+<main class="page-main" role="main">
+    <div class="wrap" style="max-width:700px">
+
+        <div id="spinner"><div class="spinner" role="status" aria-label="Carregando…"></div></div>
+
+        <div id="progress-content" class="hidden">
+
+            <div class="page-header">
+                <h1 class="page-title">Meu Progresso</h1>
+                <p class="page-subtitle">Acompanhe sua evolu&ccedil;&atilde;o e identifique pontos de melhoria.</p>
+            </div>
+
+            <!-- ── Summary stats ─────────────────────────────────── -->
+            <div class="prog-grid" role="list" aria-label="Resumo">
+                <div class="prog-stat" role="listitem">
+                    <span class="prog-stat__value" id="stat-mastered">–</span>
+                    <span class="prog-stat__label">Dominadas</span>
+                    <span class="prog-stat__sub">sequência ≥ 3</span>
+                </div>
+                <div class="prog-stat" role="listitem">
+                    <span class="prog-stat__value" id="stat-learning">–</span>
+                    <span class="prog-stat__label">Aprendendo</span>
+                    <span class="prog-stat__sub">em progresso</span>
+                </div>
+                <div class="prog-stat prog-stat--due" role="listitem">
+                    <span class="prog-stat__value" id="stat-due">–</span>
+                    <span class="prog-stat__label">Para revisar</span>
+                    <span class="prog-stat__sub">vencidas agora</span>
+                </div>
+                <div class="prog-stat" role="listitem">
+                    <span class="prog-stat__value" id="stat-days">–</span>
+                    <span class="prog-stat__label">Dias ativos</span>
+                    <span class="prog-stat__sub">com estudo</span>
+                </div>
+            </div>
+
+            <!-- ── Accuracy bar ───────────────────────────────────── -->
+            <div class="card prog-accuracy" aria-label="Precisão nos últimos 7 dias">
+                <div class="prog-accuracy__head">
+                    <span class="prog-accuracy__title">Precisão nos últimos 7 dias</span>
+                    <span class="prog-accuracy__pct" id="accuracy-pct">–%</span>
+                </div>
+                <div class="prog-accuracy__bar" role="progressbar"
+                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" id="accuracy-track">
+                    <div class="prog-accuracy__fill" id="accuracy-fill"></div>
+                </div>
+                <p class="prog-accuracy__hint" id="accuracy-hint"></p>
+            </div>
+
+            <!-- ── Per-deck table ─────────────────────────────────── -->
+            <div class="section">
+                <div class="section-title">Progresso por Deck</div>
+                <div id="deck-table-wrap">
+                    <table class="prog-table" aria-label="Progresso por deck">
+                        <thead>
+                            <tr>
+                                <th>Deck</th>
+                                <th class="num">Total</th>
+                                <th class="num">Dominadas</th>
+                                <th class="num">Aprendendo</th>
+                                <th class="num">Vencidas</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deck-table-body"></tbody>
+                    </table>
+                </div>
+                <p id="no-decks" class="text-muted hidden" style="padding:.75rem 0">
+                    Nenhum deck estudado ainda. <a href="/">Comece agora →</a>
+                </p>
+            </div>
+
+        </div><!-- /progress-content -->
+    </div>
+</main>
+
+<script src="/static/js/app.js"></script>
+<script src="/static/js/progress.js"></script>
+</body>
+</html>

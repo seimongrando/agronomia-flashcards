@@ -64,10 +64,17 @@
 
                 <div id="new-deck-form" class="hidden mt-1" style="display:none">
                     <div class="field-row mt-1">
-                        <div class="field">
+                        <div class="field" style="flex:2">
                             <input id="new-deck-name" type="text" class="input"
                                    placeholder="Nome do deck (máx. 80 caracteres)"
                                    maxlength="80" aria-label="Nome do novo deck">
+                        </div>
+                        <div class="field" style="flex:1">
+                            <input id="new-deck-subject" type="text" class="input"
+                                   placeholder="Matéria (ex: Química do Solo)"
+                                   maxlength="80" aria-label="Matéria do deck"
+                                   list="subject-suggestions">
+                            <datalist id="subject-suggestions"></datalist>
                         </div>
                         <button id="btn-create-deck" class="btn btn-primary btn-sm"
                                 style="align-self:flex-end" aria-label="Confirmar criação">Criar</button>

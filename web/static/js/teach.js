@@ -6,12 +6,14 @@
     var deniedEl     = document.getElementById("access-denied");
     var contentEl    = document.getElementById("teach-content");
 
-    var deckSelect   = document.getElementById("deck-select");
-    var btnNewDeck   = document.getElementById("btn-new-deck");
-    var newDeckForm  = document.getElementById("new-deck-form");
-    var newDeckName  = document.getElementById("new-deck-name");
-    var btnCreate    = document.getElementById("btn-create-deck");
-    var btnCancel    = document.getElementById("btn-cancel-deck");
+    var deckSelect      = document.getElementById("deck-select");
+    var btnNewDeck      = document.getElementById("btn-new-deck");
+    var newDeckForm     = document.getElementById("new-deck-form");
+    var newDeckName     = document.getElementById("new-deck-name");
+    var newDeckSubject  = document.getElementById("new-deck-subject");
+    var subjectDatalist = document.getElementById("subject-suggestions");
+    var btnCreate       = document.getElementById("btn-create-deck");
+    var btnCancel       = document.getElementById("btn-cancel-deck");
     var deckLink     = document.getElementById("deck-link");
     var deckManageLink = document.getElementById("deck-manage-link");
 
@@ -104,13 +106,24 @@
             if (!res.ok) return;
             return res.json();
         }).then(function (page) {
-            // API returns {items: [...], next_cursor: "..." | null}
             var decks = (page && page.items) ? page.items : (page || []);
+            var subjects = {};
             for (var i = 0; i < decks.length; i++) {
                 var opt = document.createElement("option");
                 opt.value = decks[i].id;
-                opt.textContent = decks[i].name;
+                opt.textContent = decks[i].subject
+                    ? decks[i].name + " [" + decks[i].subject + "]"
+                    : decks[i].name;
                 deckSelect.appendChild(opt);
+                if (decks[i].subject) subjects[decks[i].subject] = true;
+            }
+            // Populate autocomplete datalist
+            if (subjectDatalist) {
+                Object.keys(subjects).sort().forEach(function (s) {
+                    var o = document.createElement("option");
+                    o.value = s;
+                    subjectDatalist.appendChild(o);
+                });
             }
         });
     }
@@ -146,19 +159,33 @@
     function createDeck() {
         var name = newDeckName.value.trim();
         if (!name) return;
+        var subject = (newDeckSubject && newDeckSubject.value.trim()) || null;
         btnCreate.disabled = true;
-        api.post("/api/content/decks", { name: name })
+        api.post("/api/content/decks", { name: name, subject: subject })
             .then(function (res) { return res.json(); })
             .then(function (deck) {
                 if (!deck.id) throw new Error("no id");
                 var opt = document.createElement("option");
                 opt.value = deck.id;
-                opt.textContent = deck.name;
+                opt.textContent = deck.name + (deck.subject ? " [" + deck.subject + "]" : "");
                 deckSelect.appendChild(opt);
                 deckSelect.value = deck.id;
                 deckSelect.dispatchEvent(new Event("change"));
                 newDeckForm.classList.add("hidden");
                 newDeckName.value = "";
+                if (newDeckSubject) newDeckSubject.value = "";
+                // add new subject to autocomplete if not already there
+                if (subject && subjectDatalist) {
+                    var exists = false;
+                    for (var i = 0; i < subjectDatalist.options.length; i++) {
+                        if (subjectDatalist.options[i].value === subject) { exists = true; break; }
+                    }
+                    if (!exists) {
+                        var o = document.createElement("option");
+                        o.value = subject;
+                        subjectDatalist.appendChild(o);
+                    }
+                }
                 toast("Deck criado!", "ok");
             })
             .catch(function () { toast("Erro ao criar deck", "error"); })
@@ -307,7 +334,9 @@
             for (var i = 0; i < decks.length; i++) {
                 var opt = document.createElement("option");
                 opt.value = decks[i].id;
-                opt.textContent = decks[i].name;
+                opt.textContent = decks[i].subject
+                    ? decks[i].name + " [" + decks[i].subject + "]"
+                    : decks[i].name;
                 deckSelect.appendChild(opt);
             }
             if (prev) { deckSelect.value = prev; deckSelect.dispatchEvent(new Event("change")); }

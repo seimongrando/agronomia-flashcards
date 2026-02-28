@@ -6,11 +6,12 @@ type DeckWithCounts struct {
 	ID          string     `json:"id"`
 	Name        string     `json:"name"`
 	Description *string    `json:"description,omitempty"`
+	Subject     *string    `json:"subject,omitempty"` // discipline grouping
 	CreatedAt   time.Time  `json:"created_at"`
 	TotalCards  int        `json:"total_cards"`
 	DueNow      int        `json:"due_now"`
-	LastStudied *time.Time `json:"last_studied,omitempty"` // latest review by this user for this deck
-	NextReview  *time.Time `json:"next_review,omitempty"`  // earliest future next_due for this user+deck
+	LastStudied *time.Time `json:"last_studied,omitempty"`
+	NextReview  *time.Time `json:"next_review,omitempty"`
 }
 
 type AnswerRequest struct {
