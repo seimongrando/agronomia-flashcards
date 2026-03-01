@@ -115,8 +115,8 @@
         }
 
         // Build ordered groups: subjects alphabetically, then null-subject group last
-        var groups   = {};   // subject -> [deck]
-        var order    = [];   // ordered subject keys
+        var groups    = {};   // subject -> [deck]
+        var order     = [];   // ordered subject keys
         var noSubject = [];
 
         decks.forEach(function (d) {
@@ -130,19 +130,30 @@
 
         order.sort(function (a, b) { return a.localeCompare(b, "pt"); });
 
+        var chevronSvg =
+            '<svg class="subject-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+            '<path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>' +
+            '</svg>';
+
         var html = "";
 
-        // If every deck has a subject, don't show the "no subject" fallback at all
+        // Each subject group is collapsible; state persisted in sessionStorage.
         order.forEach(function (subj) {
-            html += '<div class="subject-group">' +
-                '<div class="subject-group__header">' +
+            var key       = "sg_collapsed_" + subj;
+            var collapsed = sessionStorage.getItem(key) === "1";
+            var sgCls     = collapsed ? " subject-group--collapsed" : "";
+            var expanded  = collapsed ? "false" : "true";
+            var gridId    = "sg-grid-" + subj.replace(/\s+/g, "_");
+            html += '<div class="subject-group' + sgCls + '" data-sg-key="' + app.esc(key) + '">' +
+                '<button class="subject-group__header" aria-expanded="' + expanded + '" aria-controls="' + gridId + '">' +
                     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
                         '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
                         '<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
                     '</svg>' +
                     '<span>' + app.esc(subj) + '</span>' +
-                '</div>' +
-                '<div class="deck-grid">' +
+                    chevronSvg +
+                '</button>' +
+                '<div class="deck-grid" id="' + gridId + '">' +
                     groups[subj].map(renderDeckCard).join("") +
                 '</div>' +
             '</div>';
@@ -151,24 +162,41 @@
         if (noSubject.length > 0) {
             var label = order.length > 0 ? "Sem matéria" : "";
             if (label) {
-                html += '<div class="subject-group">' +
-                    '<div class="subject-group__header subject-group__header--muted">' +
+                var key2      = "sg_collapsed__none";
+                var collapsed2 = sessionStorage.getItem(key2) === "1";
+                var sgCls2    = collapsed2 ? " subject-group--collapsed" : "";
+                var expanded2 = collapsed2 ? "false" : "true";
+                var gridId2   = "sg-grid--none";
+                html += '<div class="subject-group' + sgCls2 + '" data-sg-key="' + key2 + '">' +
+                    '<button class="subject-group__header subject-group__header--muted" aria-expanded="' + expanded2 + '" aria-controls="' + gridId2 + '">' +
                         '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
                             '<path d="M4 6h16M4 10h16M4 14h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
                         '</svg>' +
                         '<span>' + label + '</span>' +
-                    '</div>' +
-                    '<div class="deck-grid">' +
+                        chevronSvg +
+                    '</button>' +
+                    '<div class="deck-grid" id="' + gridId2 + '">' +
                         noSubject.map(renderDeckCard).join("") +
                     '</div>' +
                 '</div>';
             } else {
-                // All ungrouped — plain grid
+                // All ungrouped — plain grid (no subject headers)
                 html += '<div class="deck-grid">' + noSubject.map(renderDeckCard).join("") + '</div>';
             }
         }
 
         gridEl.innerHTML = html;
+
+        // Attach toggle listeners to all subject-group headers
+        gridEl.querySelectorAll(".subject-group__header").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var sg  = btn.closest(".subject-group");
+                var key = sg.dataset.sgKey;
+                var isCollapsed = sg.classList.toggle("subject-group--collapsed");
+                btn.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+                sessionStorage.setItem(key, isCollapsed ? "1" : "0");
+            });
+        });
     }
 
     /* ── Date helpers ───────────────────────────────────────────────────────── */
@@ -260,11 +288,11 @@
                 (isDisabled
                     ? '<a href="/deck_manage.html?deckId=' + d.id + '&deckName=' + encodeURIComponent(d.name) +
                       '" class="btn btn-sm btn-outline">Gerenciar</a>'
-                    : '<a href="/study.html?deckId=' + d.id + '&mode=due&deckName=' + encodeURIComponent(d.name) + '" class="btn btn-sm btn-primary"' +
+                    : '<a href="/study.html?deckId=' + d.id + '&mode=due&deckName=' + encodeURIComponent(d.name) + (d.subject ? '&deckSubject=' + encodeURIComponent(d.subject) : '') + '" class="btn btn-sm btn-primary"' +
                           (d.due_now === 0 ? ' disabled aria-disabled="true" tabindex="-1"' : '') +
                           '>Revisar</a>' +
-                      '<a href="/study.html?deckId=' + d.id + '&mode=random&deckName=' + encodeURIComponent(d.name) + '" class="btn btn-sm btn-outline">Aleat\u00f3rio</a>' +
-                      '<a href="/study.html?deckId=' + d.id + '&mode=wrong&deckName=' + encodeURIComponent(d.name) + '" class="btn btn-sm btn-outline">Errei</a>'
+                      '<a href="/study.html?deckId=' + d.id + '&mode=random&deckName=' + encodeURIComponent(d.name) + (d.subject ? '&deckSubject=' + encodeURIComponent(d.subject) : '') + '" class="btn btn-sm btn-outline">Aleat\u00f3rio</a>' +
+                      '<a href="/study.html?deckId=' + d.id + '&mode=wrong&deckName=' + encodeURIComponent(d.name) + (d.subject ? '&deckSubject=' + encodeURIComponent(d.subject) : '') + '" class="btn btn-sm btn-outline">Errei</a>'
                 ) +
             '</div>' +
         '</div>';

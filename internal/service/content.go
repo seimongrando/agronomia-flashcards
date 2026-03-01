@@ -110,13 +110,7 @@ func (s *ContentService) DeleteDeck(ctx context.Context, id string) error {
 	if _, err := s.checkDeckOwnership(ctx, id); err != nil {
 		return err
 	}
-	count, err := s.decks.CardCount(ctx, id)
-	if err != nil {
-		return err
-	}
-	if count > 0 {
-		return fmt.Errorf("deck has %d card(s); remove them before deleting the deck", count)
-	}
+	// Cards and reviews are removed automatically by ON DELETE CASCADE in the DB.
 	return s.decks.Delete(ctx, id)
 }
 

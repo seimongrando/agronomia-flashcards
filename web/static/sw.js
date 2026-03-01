@@ -1,5 +1,5 @@
 /* Agronomia Flashcards — Service Worker */
-const CACHE = 'agro-v3';
+const CACHE = 'agro-v4';
 
 // Only pre-cache static assets that change rarely (images / icons).
 // HTML, CSS and JS use network-first so code updates are always reflected
@@ -39,13 +39,21 @@ self.addEventListener('fetch', e => {
   if (url.pathname.startsWith('/auth/')) return;
   if (url.pathname === '/sw.js') return;
 
+  // Helper: store a response in cache without consuming the original.
+  // The clone must be created synchronously before any async gap,
+  // otherwise the original body may already be consumed.
+  function storeInCache(request, response) {
+    const clone = response.clone(); // synchronous clone — body not yet consumed
+    caches.open(CACHE).then(c => c.put(request, clone));
+  }
+
   // Images: cache-first (icons are stable; fall back to cache when offline).
   if (e.request.destination === 'image') {
     e.respondWith(
       caches.match(e.request).then(cached => {
         if (cached) return cached;
         return fetch(e.request).then(res => {
-          if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+          if (res.ok) storeInCache(e.request, res);
           return res;
         });
       })
@@ -58,7 +66,7 @@ self.addEventListener('fetch', e => {
   e.respondWith(
     fetch(e.request)
       .then(res => {
-        if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+        if (res.ok) storeInCache(e.request, res);
         return res;
       })
       .catch(() => caches.match(e.request))

@@ -1,10 +1,11 @@
 (function () {
     "use strict";
 
-    var params    = new URLSearchParams(window.location.search);
-    var deckId    = params.get("deckId");
-    var mode      = params.get("mode") || "due";
-    var deckName  = params.get("deckName") ? decodeURIComponent(params.get("deckName")) : null;
+    var params      = new URLSearchParams(window.location.search);
+    var deckId      = params.get("deckId");
+    var mode        = params.get("mode") || "due";
+    var deckName    = params.get("deckName")    ? decodeURIComponent(params.get("deckName"))    : null;
+    var deckSubject = params.get("deckSubject") ? decodeURIComponent(params.get("deckSubject")) : null;
 
     /* ── Stable DOM refs (never replaced) ─────────────────────────────────── */
     var counterEl     = document.getElementById("study-counter");
@@ -298,6 +299,11 @@
     function renderDeckContext() {
         if (!deckCtxEl) return;
         var label = MODE_LABELS[mode] || mode;
+        // Subject tag (shown before deck name when available)
+        var subjectHtml = deckSubject
+            ? '<span class="deck-ctx__subject">' + app.esc(deckSubject) + '</span>' +
+              '<span class="deck-ctx__sep" aria-hidden="true">›</span>'
+            : '';
         var nameHtml = deckName
             ? '<span class="deck-ctx__name">' + app.esc(deckName) + '</span>' +
               '<span class="deck-ctx__sep" aria-hidden="true">·</span>'
@@ -308,6 +314,7 @@
             '<path d="M12 13C13 10 16 8 19 8C19 11 16.5 13.5 12 13Z" fill="currentColor"/>' +
             '<path d="M12 17C11 14 8 12 5 12C5 15 7.5 17.5 12 17Z" fill="currentColor" opacity="0.6"/>' +
             '</svg>' +
+            subjectHtml +
             nameHtml +
             '<span class="deck-ctx__mode">' + app.esc(label) + '</span>';
     }
@@ -578,10 +585,12 @@
                 (isError ? '' :
                     (mode === "random"
                         ? '<a href="/study.html?deckId=' + encodeURIComponent(deckId) + '&mode=random' +
-                          (deckName ? '&deckName=' + encodeURIComponent(deckName) : '') +
+                          (deckName    ? '&deckName='    + encodeURIComponent(deckName)    : '') +
+                          (deckSubject ? '&deckSubject=' + encodeURIComponent(deckSubject) : '') +
                           '" class="btn btn-outline">Revisar de novo</a>'
                         : '<a href="/study.html?deckId=' + encodeURIComponent(deckId) + '&mode=random' +
-                          (deckName ? '&deckName=' + encodeURIComponent(deckName) : '') +
+                          (deckName    ? '&deckName='    + encodeURIComponent(deckName)    : '') +
+                          (deckSubject ? '&deckSubject=' + encodeURIComponent(deckSubject) : '') +
                           '" class="btn btn-outline">Modo aleat\u00f3rio</a>')
                 ) +
             '</div>';

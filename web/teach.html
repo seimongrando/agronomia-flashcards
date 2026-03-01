@@ -64,6 +64,7 @@
                     <div class="section-title" style="margin-bottom:0">Seus Decks</div>
                     <div style="display:flex;gap:.5rem;align-items:center">
                         <a href="/professor_stats.html" class="btn btn-outline btn-sm" style="white-space:nowrap">📊 Painel</a>
+                        <button id="btn-select-mode" class="btn btn-outline btn-sm hidden" aria-label="Selecionar decks para excluir" title="Selecionar vários decks">Selecionar</button>
                         <button id="btn-new-deck" class="btn btn-primary btn-sm" aria-label="Criar novo deck">+ Novo deck</button>
                     </div>
                 </div>
@@ -96,6 +97,12 @@
                     <option value=""></option>
                 </select>
 
+                <!-- Active deck context bar (shown above the grid when a deck is selected) -->
+                <div id="active-deck-bar" class="hidden active-deck-bar" style="margin-bottom:.6rem">
+                    <div id="active-deck-info"></div>
+                    <a id="deck-manage-link" href="#" class="btn btn-outline btn-sm" style="white-space:nowrap">Gerenciar →</a>
+                </div>
+
                 <!-- Visual deck grid -->
                 <div id="deck-picker-grid" class="deck-picker-grid" aria-label="Lista de decks" role="list">
                     <div style="padding:.5rem"><div class="spinner" style="width:20px;height:20px" role="status" aria-label="Carregando decks…"></div></div>
@@ -104,12 +111,6 @@
                 <p id="deck-empty-msg" class="text-muted hidden" style="padding:.5rem 0;font-size:.9rem">
                     Nenhum deck criado ainda. Clique em <strong>+ Novo deck</strong> para começar.
                 </p>
-
-                <!-- Active deck context bar -->
-                <div id="active-deck-bar" class="hidden active-deck-bar" style="margin-top:.6rem">
-                    <div id="active-deck-info"></div>
-                    <a id="deck-manage-link" href="#" class="btn btn-outline btn-sm" style="white-space:nowrap">Gerenciar →</a>
-                </div>
             </div>
 
             <!-- ── 2. CSV Import ─────────────────────────────────── -->
@@ -312,6 +313,24 @@ Fertilidade,Qu&iacute;mica do Solo,aplicacao,Como calcular calagem?,Dose = (V2-V
         </div><!-- /teach-content -->
     </div>
 </main>
+
+<!-- Bulk delete action bar (fixed at bottom, visible only in selection mode) -->
+<div id="bulk-action-bar" class="bulk-action-bar hidden" role="region" aria-live="polite" aria-label="Ações em lote">
+    <span id="bulk-count" class="bulk-count">0 selecionados</span>
+    <div style="display:flex;gap:.5rem">
+        <button id="btn-bulk-select-all" class="btn btn-outline btn-sm" style="color:var(--text)">Selecionar todos</button>
+        <button id="btn-bulk-delete" class="btn btn-sm btn-delete" disabled aria-disabled="true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="margin-right:.3rem">
+                <polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M9 6V4h6v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Excluir selecionados
+        </button>
+        <button id="btn-bulk-cancel" class="btn btn-outline btn-sm">Cancelar</button>
+    </div>
+</div>
 
 <script src="/static/js/app.js"></script>
 <script src="/static/js/teach.js"></script>

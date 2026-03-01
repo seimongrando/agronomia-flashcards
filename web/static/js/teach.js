@@ -88,6 +88,17 @@
     var currentUserID    = null;  // populated on init from /api/me
     var isAdmin          = false; // admins bypass ownership checks
 
+    // Bulk selection state
+    var selectionMode  = false;
+    var selectedIds    = {};     // {id: true}
+
+    var btnSelectMode    = document.getElementById("btn-select-mode");
+    var bulkActionBar    = document.getElementById("bulk-action-bar");
+    var bulkCountEl      = document.getElementById("bulk-count");
+    var btnBulkDelete    = document.getElementById("btn-bulk-delete");
+    var btnBulkCancel    = document.getElementById("btn-bulk-cancel");
+    var btnBulkSelectAll = document.getElementById("btn-bulk-select-all");
+
     /* ── Helpers ─────────────────────────────────── */
     function canEditDeck(deck) {
         if (isAdmin) return true;
@@ -111,7 +122,145 @@
             currentUserID = user.user ? user.user.id : null;
             app.renderTopbar(user);
             contentEl.classList.remove("hidden");
+            // Show "Selecionar" button for admin/professors
+            if (btnSelectMode) btnSelectMode.classList.remove("hidden");
             loadDecks();
+            wireSelectionMode();
+        });
+    }
+
+    /* ── Bulk selection ──────────────────────────── */
+    function wireSelectionMode() {
+        if (btnSelectMode) {
+            btnSelectMode.addEventListener("click", function () {
+                enterSelectionMode();
+            });
+        }
+        if (btnBulkCancel) {
+            btnBulkCancel.addEventListener("click", exitSelectionMode);
+        }
+        if (btnBulkSelectAll) {
+            btnBulkSelectAll.addEventListener("click", function () {
+                var cards = deckPickerGrid.querySelectorAll(".deck-picker-card[data-owned='1']");
+                var allChecked = cards.length > 0 &&
+                    Array.prototype.every.call(cards, function (c) { return selectedIds[c.dataset.id]; });
+                if (allChecked) {
+                    // Deselect all
+                    Array.prototype.forEach.call(cards, function (c) {
+                        delete selectedIds[c.dataset.id];
+                        c.classList.remove("deck-picker-card--checked");
+                    });
+                } else {
+                    // Select all owned
+                    Array.prototype.forEach.call(cards, function (c) {
+                        selectedIds[c.dataset.id] = true;
+                        c.classList.add("deck-picker-card--checked");
+                    });
+                }
+                updateBulkBar();
+            });
+        }
+        if (btnBulkDelete) {
+            btnBulkDelete.addEventListener("click", bulkDelete);
+        }
+    }
+
+    function enterSelectionMode() {
+        selectionMode = true;
+        selectedIds   = {};
+        btnSelectMode.textContent = "Cancelar seleção";
+        btnSelectMode.classList.add("btn-danger-outline");
+        if (bulkActionBar) bulkActionBar.classList.remove("hidden");
+        // Hide active deck bar to avoid confusion
+        if (activeDeckBar) activeDeckBar.classList.add("hidden");
+        // Re-render grid with checkboxes
+        renderDeckGrid(allDecks);
+        updateBulkBar();
+    }
+
+    function exitSelectionMode() {
+        selectionMode = false;
+        selectedIds   = {};
+        if (btnSelectMode) {
+            btnSelectMode.textContent = "Selecionar";
+            btnSelectMode.classList.remove("btn-danger-outline");
+        }
+        if (bulkActionBar) bulkActionBar.classList.add("hidden");
+        // Re-render grid without checkboxes
+        renderDeckGrid(allDecks);
+    }
+
+    function updateBulkBar() {
+        var ids   = Object.keys(selectedIds);
+        var count = ids.length;
+        if (bulkCountEl) bulkCountEl.textContent = count + (count === 1 ? " selecionado" : " selecionados");
+        if (btnBulkDelete) {
+            btnBulkDelete.disabled = count === 0;
+            btnBulkDelete.setAttribute("aria-disabled", count === 0 ? "true" : "false");
+        }
+        // Update "Selecionar todos" label
+        if (btnBulkSelectAll) {
+            var owned = deckPickerGrid ? deckPickerGrid.querySelectorAll(".deck-picker-card[data-owned='1']").length : 0;
+            btnBulkSelectAll.textContent = (count > 0 && count === owned) ? "Desmarcar todos" : "Selecionar todos";
+        }
+    }
+
+    function bulkDelete() {
+        var ids   = Object.keys(selectedIds);
+        if (ids.length === 0) return;
+        var names = ids.map(function (id) {
+            var d = allDecks.filter(function (x) { return x.id === id; })[0];
+            return d ? d.name : id;
+        });
+        var preview = names.slice(0, 5).join(", ") + (names.length > 5 ? " e mais " + (names.length - 5) + "…" : "");
+        if (!confirm("Excluir " + ids.length + " deck(s)?\n\n" + preview + "\n\nEsta ação não pode ser desfeita.")) return;
+
+        btnBulkDelete.disabled = true;
+        btnBulkDelete.setAttribute("aria-disabled", "true");
+        // Replace label only, keeping the SVG icon intact
+        var labelSpan = btnBulkDelete.querySelector("span") || btnBulkDelete.lastChild;
+        var svgEl     = btnBulkDelete.querySelector("svg");
+        btnBulkDelete.innerHTML = (svgEl ? svgEl.outerHTML : "") + " Excluindo…";
+
+        Promise.all(ids.map(function (id) {
+            return api.del("/api/content/decks/" + id);
+        })).then(function (results) {
+            var failed    = results.filter(function (r) { return !r.ok; }).length;
+            var succeeded = ids.length - failed;
+
+            // Remove successfully deleted decks from local list immediately
+            // so the re-render in exitSelectionMode shows the correct state.
+            if (succeeded > 0) {
+                var failedIds = {};
+                results.forEach(function (r, i) { if (!r.ok) failedIds[ids[i]] = true; });
+                allDecks = allDecks.filter(function (d) { return failedIds[d.id] || !selectedIds[d.id]; });
+                // If deleted deck was the active selection, reset it
+                if (selectedIds[currentDeckID] && !failedIds[currentDeckID]) {
+                    currentDeckID   = null;
+                    currentDeckName = "";
+                }
+            }
+
+            exitSelectionMode();
+            reloadDecks(); // sync with server in background
+
+            if (failed > 0) {
+                toast(failed + " deck(s) não puderam ser excluídos.", "error");
+            } else {
+                toast(succeeded + " deck(s) excluído(s) com sucesso.", "success");
+            }
+        }).catch(function () {
+            toast("Erro ao excluir decks. Tente novamente.", "error");
+            // Restore button label
+            btnBulkDelete.innerHTML =
+                '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="margin-right:.3rem">' +
+                '<polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                '<path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                '<path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+                '<path d="M9 6V4h6v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                '</svg> Excluir selecionados';
+            btnBulkDelete.disabled = false;
+            btnBulkDelete.setAttribute("aria-disabled", "false");
         });
     }
 
@@ -169,7 +318,9 @@
 
             var owned      = canEditDeck(d);
             var isSelected = d.id === currentDeckID;
+            var isChecked  = selectionMode && selectedIds[d.id];
             var selectedCls = isSelected ? " deck-picker-card--selected" : "";
+            var checkedCls  = isChecked  ? " deck-picker-card--checked"  : "";
             // Non-owner decks are shown read-only with a visual indicator
             var readOnlyCls = !owned ? " deck-picker-card--readonly" : "";
 
@@ -177,7 +328,16 @@
                 ? '<span class="badge" style="font-size:.68rem;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80" title="Você pode visualizar mas não editar este deck">somente leitura</span>'
                 : '<span class="badge" style="font-size:.68rem;background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7">seu deck</span>';
 
-            return '<div class="deck-picker-card' + selectedCls + readOnlyCls + '" role="listitem" data-id="' + d.id + '" data-name="' + app.esc(d.name) + '" data-owned="' + (owned ? '1' : '0') + '" tabindex="0" aria-pressed="' + isSelected + '">' +
+            var checkOverlay = selectionMode && owned
+                ? '<div class="deck-picker-check" aria-hidden="true">' +
+                  (isChecked
+                    ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+                    : '') +
+                  '</div>'
+                : '';
+
+            return '<div class="deck-picker-card' + selectedCls + checkedCls + readOnlyCls + '" role="listitem" data-id="' + d.id + '" data-name="' + app.esc(d.name) + '" data-owned="' + (owned ? '1' : '0') + '" tabindex="0" aria-pressed="' + isSelected + '">' +
+                checkOverlay +
                 '<div class="deck-picker-card__head">' +
                     '<span class="deck-picker-card__name">' + app.esc(d.name) + '</span>' +
                     '<div style="display:flex;gap:.3rem;flex-wrap:wrap">' + statusTag + ownerTag + '</div>' +
@@ -189,9 +349,27 @@
 
         // Click handler for each card
         deckPickerGrid.querySelectorAll('.deck-picker-card').forEach(function (el) {
-            el.addEventListener('click', function () { selectDeck(el.dataset.id, el.dataset.name, el.dataset.owned === '1'); });
+            el.addEventListener('click', function () {
+                if (selectionMode) {
+                    // Only owned decks can be selected for deletion
+                    if (el.dataset.owned !== '1') return;
+                    if (selectedIds[el.dataset.id]) {
+                        delete selectedIds[el.dataset.id];
+                        el.classList.remove("deck-picker-card--checked");
+                        el.querySelector(".deck-picker-check").innerHTML = "";
+                    } else {
+                        selectedIds[el.dataset.id] = true;
+                        el.classList.add("deck-picker-card--checked");
+                        el.querySelector(".deck-picker-check").innerHTML =
+                            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                    }
+                    updateBulkBar();
+                    return;
+                }
+                selectDeck(el.dataset.id, el.dataset.name, el.dataset.owned === '1');
+            });
             el.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectDeck(el.dataset.id, el.dataset.name, el.dataset.owned === '1'); }
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
             });
         });
     }
