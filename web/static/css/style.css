@@ -2513,13 +2513,17 @@ a { color: inherit; }
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background: #D97706;
+    background: #D97706;      /* amber — student mode */
     border: 2px solid var(--surface);
 }
+.student-mode-dot--professor { background: #2563EB; } /* blue — professor mode */
+.student-mode-dot--student   { background: #D97706; }
 
-/* Dropdown items for student mode toggle */
+/* Dropdown items for preview mode toggles */
 .user-menu-item--student-enter,
-.user-menu-item--student-exit {
+.user-menu-item--student-exit,
+.user-menu-item--professor-enter,
+.user-menu-item--professor-exit {
     display: flex;
     align-items: center;
     gap: .45rem;
@@ -2534,9 +2538,12 @@ a { color: inherit; }
     color: var(--text);
     transition: background .12s;
 }
-.user-menu-item--student-enter:hover { background: #FFFBEB; color: #92400E; }
-.user-menu-item--student-exit  { color: #D97706; font-weight: 600; }
-.user-menu-item--student-exit:hover  { background: #FEF3C7; }
+.user-menu-item--student-enter:hover   { background: #FFFBEB; color: #92400E; }
+.user-menu-item--student-exit          { color: #D97706; font-weight: 600; }
+.user-menu-item--student-exit:hover    { background: #FEF3C7; }
+.user-menu-item--professor-enter:hover { background: #EFF6FF; color: #1D4ED8; }
+.user-menu-item--professor-exit        { color: #2563EB; font-weight: 600; }
+.user-menu-item--professor-exit:hover  { background: #DBEAFE; }
 
 /* Fixed bottom banner */
 .student-mode-banner {
@@ -2545,20 +2552,25 @@ a { color: inherit; }
     left: 0;
     right: 0;
     z-index: 500;
-    background: #D97706;
+    background: #D97706;   /* amber — student mode */
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: .85rem;
-    padding: .55rem 1.25rem;
+    gap: .75rem;
+    padding: .5rem 1rem;
     font-size: .85rem;
     font-weight: 500;
     box-shadow: 0 -3px 14px rgba(0,0,0,.18);
     flex-wrap: wrap;
 }
+/* Professor mode variant — blue */
+.student-mode-banner--professor { background: #2563EB; }
+
 .student-mode-banner svg { flex-shrink: 0; }
 .student-mode-banner strong { font-weight: 700; }
+
+/* "Sair do modo" button */
 .student-mode-banner__exit {
     background: rgba(255,255,255,.22);
     border: 1.5px solid rgba(255,255,255,.55);
@@ -2573,6 +2585,26 @@ a { color: inherit; }
     white-space: nowrap;
 }
 .student-mode-banner__exit:hover { background: rgba(255,255,255,.35); }
+
+/* "×" dismiss button — hides banner but keeps mode active */
+.student-mode-banner__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    margin-left: auto;
+    background: rgba(255,255,255,.15);
+    border: 1px solid rgba(255,255,255,.4);
+    border-radius: 50%;
+    color: #fff;
+    cursor: pointer;
+    font-family: inherit;
+    flex-shrink: 0;
+    transition: background .15s;
+}
+.student-mode-banner__close:hover { background: rgba(255,255,255,.32); }
 
 /* Add bottom padding to main so the banner doesn't overlap content */
 body:has(.student-mode-banner) main { padding-bottom: 3.5rem; }

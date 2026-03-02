@@ -51,11 +51,13 @@
         });
     }
 
-    // ── Student-mode helpers ─────────────────────────────────────────────────
-    // Admins/professors can activate "student view" to experience the app as a
-    // student. The mode is stored in sessionStorage and cleared on exit or when
-    // the browser tab is closed. The real server-side role is never changed.
-    var STUDENT_MODE_KEY = "_agro_student_mode";
+    // ── Role-preview helpers ──────────────────────────────────────────────────
+    // Admins can simulate student or professor view without changing their real
+    // server-side role. State lives in sessionStorage (cleared on tab close).
+    // Modes are mutually exclusive: entering one always exits the other.
+    var STUDENT_MODE_KEY   = "_agro_student_mode";
+    var PROFESSOR_MODE_KEY = "_agro_professor_mode";
+    var BANNER_DISMISSED_KEY = "_agro_banner_dismissed";
 
     // ── Topbar rendering ─────────────────────────────────────────────────────
     window.app = {
@@ -72,25 +74,36 @@
             return el.innerHTML;
         },
 
-        // Returns true when a staff user has activated student-preview mode.
-        isStudentMode: function () {
-            return sessionStorage.getItem(STUDENT_MODE_KEY) === "1";
-        },
+        // ── Mode predicates ───────────────────────────────────────────────────
+        isStudentMode:   function () { return sessionStorage.getItem(STUDENT_MODE_KEY)   === "1"; },
+        isProfessorMode: function () { return sessionStorage.getItem(PROFESSOR_MODE_KEY) === "1"; },
 
-        // Activate student-preview mode and reload so all pages re-render.
+        // ── Mode transitions ──────────────────────────────────────────────────
         enterStudentMode: function () {
             sessionStorage.setItem(STUDENT_MODE_KEY, "1");
+            sessionStorage.removeItem(PROFESSOR_MODE_KEY);
+            sessionStorage.removeItem(BANNER_DISMISSED_KEY);
             window.location.href = "/";
         },
-
-        // Deactivate student-preview mode and return to admin home.
         exitStudentMode: function () {
             sessionStorage.removeItem(STUDENT_MODE_KEY);
+            sessionStorage.removeItem(BANNER_DISMISSED_KEY);
+            window.location.href = "/";
+        },
+        enterProfessorMode: function () {
+            sessionStorage.setItem(PROFESSOR_MODE_KEY, "1");
+            sessionStorage.removeItem(STUDENT_MODE_KEY);
+            sessionStorage.removeItem(BANNER_DISMISSED_KEY);
+            window.location.href = "/";
+        },
+        exitProfessorMode: function () {
+            sessionStorage.removeItem(PROFESSOR_MODE_KEY);
+            sessionStorage.removeItem(BANNER_DISMISSED_KEY);
             window.location.href = "/";
         },
 
-        // Convenience: returns effective isStaff respecting student mode.
-        // Use this in page scripts instead of checking roles directly.
+        // Convenience: returns effective isStaff respecting active preview mode.
+        // Professor mode keeps staff = true; student mode forces it to false.
         effectiveIsStaff: function (roles) {
             if (app.isStudentMode()) return false;
             roles = Array.isArray(roles) ? roles : [];
@@ -136,15 +149,19 @@
             var user  = me.user;
             var roles = Array.isArray(me.roles) ? me.roles : [];
 
-            // Real role flags (never affected by student mode)
+            // Real role flags (never affected by preview modes)
             var realIsAdmin     = roles.indexOf("admin") !== -1;
             var realIsProfessor = roles.indexOf("professor") !== -1;
             var realIsStaff     = realIsAdmin || realIsProfessor;
 
-            // Effective role flags (flipped to student when mode is active)
-            var studentMode  = realIsStaff && app.isStudentMode();
-            var effIsStaff   = realIsStaff && !studentMode;
-            var effIsAdmin   = realIsAdmin  && !studentMode;
+            // Active preview mode
+            var studentMode   = realIsStaff && app.isStudentMode();
+            var professorMode = realIsAdmin  && !studentMode && app.isProfessorMode();
+            var anyPreview    = studentMode || professorMode;
+
+            // Effective role flags
+            var effIsStaff = realIsStaff && !studentMode;  // professor mode keeps staff=true
+            var effIsAdmin = realIsAdmin  && !anyPreview;   // professor mode hides admin links
 
             var name  = user.name  || "Usuário";
             var email = user.email || "";
@@ -176,30 +193,58 @@
                 ? '<img src="' + app.esc(pic) + '" alt="" class="topbar-avatar">'
                 : '<span class="topbar-initials">' + app.esc(initials) + '</span>';
 
-            // In student mode show the avatar with a small badge to signal the mode
-            var triggerAvatarEl = studentMode
+            // In preview mode show the avatar with a small coloured dot
+            var triggerAvatarEl = anyPreview
                 ? '<span class="topbar-avatar-wrap">' + avatarEl +
-                  '<span class="student-mode-dot" title="Modo Aluno ativo"></span></span>'
+                  '<span class="student-mode-dot student-mode-dot--' +
+                  (studentMode ? "student" : "professor") +
+                  '" title="' + (studentMode ? "Modo Aluno" : "Modo Professor") + ' ativo"></span></span>'
                 : avatarEl;
 
             var roleBadges = roles.map(function (r) {
                 return '<span class="role-badge role-badge--' + app.esc(r) + '">' + app.esc(r) + '</span>';
             }).join(" ");
 
-            // Student-mode toggle item shown inside the dropdown
-            var studentModeItem = realIsStaff
-                ? (studentMode
-                    ? '<button class="user-menu-item user-menu-item--student-exit" role="menuitem" id="btn-exit-student-mode">' +
-                      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0">' +
-                      '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
-                      '</svg>Sair do Modo Aluno</button>'
-                    : '<button class="user-menu-item user-menu-item--student-enter" role="menuitem" id="btn-enter-student-mode">' +
-                      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0">' +
-                      '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
-                      '<circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/>' +
-                      '<path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
-                      '</svg>Visualizar como aluno</button>')
-                : '';
+            // ── Preview mode items shown inside the dropdown ───────────────
+            var iconExit =
+                '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0">' +
+                '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                '</svg>';
+            var iconStudent =
+                '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0">' +
+                '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+                '<circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/>' +
+                '<path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+                '</svg>';
+            var iconProfessor =
+                '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0">' +
+                '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                '</svg>';
+
+            var studentModeItem = "";
+            if (realIsStaff) {
+                if (studentMode) {
+                    // Currently in student mode → show exit
+                    studentModeItem =
+                        '<button class="user-menu-item user-menu-item--student-exit" role="menuitem" id="btn-exit-student-mode">' +
+                        iconExit + 'Sair do Modo Aluno</button>';
+                } else if (professorMode) {
+                    // Currently in professor mode → show exit
+                    studentModeItem =
+                        '<button class="user-menu-item user-menu-item--professor-exit" role="menuitem" id="btn-exit-professor-mode">' +
+                        iconExit + 'Sair do Modo Professor</button>';
+                } else {
+                    // Normal mode → show both entry options (professor entry only for admins)
+                    studentModeItem =
+                        '<button class="user-menu-item user-menu-item--student-enter" role="menuitem" id="btn-enter-student-mode">' +
+                        iconStudent + 'Visualizar como aluno</button>';
+                    if (realIsAdmin) {
+                        studentModeItem +=
+                            '<button class="user-menu-item user-menu-item--professor-enter" role="menuitem" id="btn-enter-professor-mode">' +
+                            iconProfessor + 'Visualizar como professor</button>';
+                    }
+                }
+            }
 
             var dropdown =
                 '<div class="user-dropdown" id="user-dropdown">' +
@@ -215,7 +260,8 @@
                             '<strong class="user-menu-name">' + app.esc(name) + '</strong>' +
                             '<span class="user-menu-email">' + app.esc(email) + '</span>' +
                             '<div class="user-menu-roles">' + roleBadges +
-                                (studentMode ? '<span class="role-badge" style="background:#D97706;color:#fff">modo aluno</span>' : '') +
+                                (studentMode   ? '<span class="role-badge" style="background:#D97706;color:#fff">modo aluno</span>'      : '') +
+                                (professorMode ? '<span class="role-badge" style="background:#2563EB;color:#fff">modo professor</span>' : '') +
                             '</div>' +
                         '</div>' +
                         '<div class="user-menu-divider"></div>' +
@@ -267,11 +313,17 @@
             var btnLogout = document.getElementById("btn-logout");
             if (btnLogout) btnLogout.addEventListener("click", logout);
 
-            var btnEnter = document.getElementById("btn-enter-student-mode");
-            if (btnEnter) btnEnter.addEventListener("click", app.enterStudentMode);
+            var btnEnterStudent = document.getElementById("btn-enter-student-mode");
+            if (btnEnterStudent) btnEnterStudent.addEventListener("click", app.enterStudentMode);
 
-            var btnExit = document.getElementById("btn-exit-student-mode");
-            if (btnExit) btnExit.addEventListener("click", app.exitStudentMode);
+            var btnExitStudent = document.getElementById("btn-exit-student-mode");
+            if (btnExitStudent) btnExitStudent.addEventListener("click", app.exitStudentMode);
+
+            var btnEnterProf = document.getElementById("btn-enter-professor-mode");
+            if (btnEnterProf) btnEnterProf.addEventListener("click", app.enterProfessorMode);
+
+            var btnExitProf = document.getElementById("btn-exit-professor-mode");
+            if (btnExitProf) btnExitProf.addEventListener("click", app.exitProfessorMode);
 
             // Highlight active nav link
             var currentPath = window.location.pathname;
@@ -283,22 +335,39 @@
                 if (href !== "/" && currentPath.startsWith(href)) { link.classList.add("nav-link--active"); break; }
             }
 
-            // ── Student-mode floating banner ───────────────────────────────
-            if (studentMode && !document.getElementById("student-mode-banner")) {
+            // ── Preview-mode floating banner (bottom) ─────────────────────
+            if (anyPreview && !document.getElementById("student-mode-banner") &&
+                !sessionStorage.getItem(BANNER_DISMISSED_KEY)) {
+
+                var isProf   = professorMode;
+                var modeLabel = isProf ? "Modo Professor" : "Modo Aluno";
+                var modeClass = isProf ? "student-mode-banner--professor" : "";
+                var exitFn    = isProf ? "app.exitProfessorMode()" : "app.exitStudentMode()";
+                var exitBtnId = isProf ? "btn-banner-exit-prof" : "btn-banner-exit-student";
+
                 var banner = document.createElement("div");
                 banner.id = "student-mode-banner";
-                banner.className = "student-mode-banner";
+                banner.className = "student-mode-banner " + modeClass;
                 banner.innerHTML =
                     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
                     '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
                     '<circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/>' +
                     '</svg>' +
-                    '<span>Você está no <strong>Modo Aluno</strong> — visualização como estudante</span>' +
-                    '<button class="student-mode-banner__exit" id="btn-banner-exit-student">Voltar ao admin</button>';
+                    '<span>Você está no <strong>' + modeLabel + '</strong> — visualização simulada</span>' +
+                    '<button class="student-mode-banner__exit" id="' + exitBtnId + '">Sair do modo</button>' +
+                    '<button class="student-mode-banner__close" id="btn-banner-dismiss" aria-label="Fechar banner">' +
+                    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                    '<path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>' +
+                    '</svg></button>';
                 document.body.appendChild(banner);
 
-                document.getElementById("btn-banner-exit-student")
-                    .addEventListener("click", app.exitStudentMode);
+                document.getElementById(exitBtnId).addEventListener("click",
+                    isProf ? app.exitProfessorMode : app.exitStudentMode);
+
+                document.getElementById("btn-banner-dismiss").addEventListener("click", function () {
+                    banner.remove();
+                    sessionStorage.setItem(BANNER_DISMISSED_KEY, "1");
+                });
             }
         }
     };
