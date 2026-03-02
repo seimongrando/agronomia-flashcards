@@ -8,9 +8,13 @@ type DeckWithCounts struct {
 	Description *string    `json:"description,omitempty"`
 	Subject     *string    `json:"subject,omitempty"`
 	IsActive    bool       `json:"is_active"`
+	IsPrivate   bool       `json:"is_private"`
 	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	CreatedBy   *string    `json:"created_by,omitempty"` // exposed to staff for UI ownership checks
+	// Class context — populated on student home view when deck belongs to a class.
+	ClassID     *string    `json:"class_id,omitempty"`
+	ClassName   *string    `json:"class_name,omitempty"`
 	TotalCards  int        `json:"total_cards"`
 	DueNow      int        `json:"due_now"`
 	LastStudied *time.Time `json:"last_studied,omitempty"`

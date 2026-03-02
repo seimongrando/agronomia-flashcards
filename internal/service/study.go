@@ -121,12 +121,13 @@ func (s *StudyService) ListDecks(
 	showAll bool,
 ) (pagination.Page[model.DeckWithCounts], error) {
 	decks, err := s.study.ListDecksWithCountsPaged(ctx, repository.DeckListParams{
-		UserID:     userID,
-		CursorName: cursorName,
-		CursorID:   cursorID,
-		ShowAll:    showAll,
-		HideEmpty:  true, // home page never shows empty decks regardless of role
-		Limit:      limit + 1,
+		UserID:          userID,
+		CursorName:      cursorName,
+		CursorID:        cursorID,
+		ShowAll:         showAll,
+		HideEmpty:       true,     // home page never shows empty decks
+		ApplyVisibility: !showAll, // students see only their accessible decks
+		Limit:           limit + 1,
 	})
 	if err != nil {
 		return pagination.Page[model.DeckWithCounts]{}, err

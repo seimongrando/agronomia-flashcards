@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meus Cards Pessoais &mdash; Agronomia Flashcards</title>
+    <meta name="theme-color" content="#2E7D32">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Agro Cards">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="topbar" role="banner">
+    <div class="wrap">
+        <a href="/" class="topbar-brand" aria-label="Agronomia Flashcards – início">
+            <svg class="brand-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                <path d="M12 22V12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M12 13C13 10 16 8 19 8C19 11 16.5 13.5 12 13Z" fill="currentColor"/>
+                <path d="M12 17C11 14 8 12 5 12C5 15 7.5 17.5 12 17Z" fill="currentColor" opacity="0.6"/>
+                <path d="M9 22Q12 20.5 15 22" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+            </svg>
+            <span class="brand-name">Agronomia<span class="brand-sub"> – Flashcards</span></span>
+        </a>
+        <div class="topbar-center" aria-hidden="true"></div>
+        <div id="topbar-right" class="topbar-right"></div>
+    </div>
+</header>
+
+<main class="page-main">
+    <div class="wrap">
+        <div id="spinner" class="spinner" style="margin:3rem auto" role="status" aria-label="Carregando…"></div>
+
+        <div id="page-content" class="hidden">
+            <div class="page-header">
+                <div style="display:flex;align-items:center;gap:.6rem">
+                    <span class="student-section-icon student-section-icon--private" style="width:32px;height:32px">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <h1 class="page-title" style="margin:0">Meus Cards Pessoais</h1>
+                </div>
+                <p class="page-subtitle">Decks privados para o seu estudo — não visíveis para outros.</p>
+            </div>
+
+            <!-- Create deck form trigger -->
+            <div class="section">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem;flex-wrap:wrap;gap:.5rem">
+                    <div class="section-title" style="margin:0">Meus decks</div>
+                    <button id="btn-new-deck" class="btn btn-primary btn-sm">+ Criar deck pessoal</button>
+                </div>
+
+                <!-- Inline creation form -->
+                <div id="create-form" class="hidden student-create-form" style="margin-bottom:.85rem">
+                    <p style="font-size:.82rem;font-weight:600;margin-bottom:.45rem;color:var(--text-secondary)">Novo deck pessoal</p>
+                    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                        <input id="deck-name-input" type="text" class="input" style="flex:1;min-width:200px"
+                               placeholder="Nome do deck (ex: Fisiologia Vegetal)" maxlength="80"
+                               autocomplete="off">
+                        <button id="btn-create" class="btn btn-primary btn-sm">Criar e gerenciar</button>
+                        <button id="btn-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+                    </div>
+                    <p id="create-error" class="hidden" style="font-size:.82rem;margin-top:.4rem;color:var(--danger)"></p>
+                    <p class="text-muted" style="font-size:.77rem;margin-top:.35rem">
+                        Após criar, você será levado à tela para adicionar perguntas ao deck.
+                    </p>
+                </div>
+
+                <!-- Deck list -->
+                <div id="deck-list" class="my-deck-list"></div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script src="/static/js/app.js"></script>
+<script src="/static/js/my_decks.js"></script>
+</body>
+</html>

@@ -535,3 +535,192 @@ func validateOptionalFields(topic, source *string) (*string, *string, error) {
 	}
 	return outTopic, outSource, nil
 }
+
+// --- Student private deck endpoints (/api/my/decks) ---
+
+// ListMyDecks returns all private decks for the calling student.
+func (h *ContentHandler) ListMyDecks(w http.ResponseWriter, r *http.Request) {
+	decks, err := h.svc.ListMyDecks(r.Context())
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "failed to list decks")
+		return
+	}
+	JSON(w, http.StatusOK, map[string]any{"items": decks})
+}
+
+// CreateMyDeck creates a private deck for the calling student.
+func (h *ContentHandler) CreateMyDeck(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name        string  `json:"name"`
+		Description *string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := validate.Required("name", req.Name); err != nil {
+		Error(w, http.StatusBadRequest, "nome é obrigatório")
+		return
+	}
+	name, err := validate.StringField("name", req.Name, model.MaxDeckNameLen)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	deck, err := h.svc.CreateMyDeck(r.Context(), name, req.Description)
+	if err != nil {
+		if errors.Is(err, repository.ErrDeckNameTaken) {
+			Error(w, http.StatusConflict, "você já tem um deck com este nome")
+			return
+		}
+		Error(w, http.StatusInternalServerError, "failed to create deck")
+		return
+	}
+	JSON(w, http.StatusCreated, deck)
+}
+
+// DeleteMyDeck removes a student's private deck.
+func (h *ContentHandler) DeleteMyDeck(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := validate.UUID("id", id); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.svc.DeleteMyDeck(r.Context(), id); err != nil {
+		if errors.Is(err, service.ErrForbidden) {
+			Error(w, http.StatusForbidden, "você não tem permissão para excluir este deck")
+			return
+		}
+		Error(w, http.StatusInternalServerError, "failed to delete deck")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ListMyDeckCards returns all cards in a student's private deck.
+func (h *ContentHandler) ListMyDeckCards(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := validate.UUID("id", id); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cards, err := h.svc.ListMyDeckCards(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, service.ErrForbidden) || errors.Is(err, sql.ErrNoRows) {
+			Error(w, http.StatusNotFound, "deck não encontrado")
+			return
+		}
+		Error(w, http.StatusInternalServerError, "failed to list cards")
+		return
+	}
+	JSON(w, http.StatusOK, map[string]any{"items": cards})
+}
+
+// CreateMyCard adds a card to a student's private deck.
+func (h *ContentHandler) CreateMyCard(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := validate.UUID("id", id); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	var req struct {
+		Question string `json:"question"`
+		Answer   string `json:"answer"`
+		Type     string `json:"type"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	question, err := validate.StringField("question", req.Question, model.MaxQuestionLen)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	answer, err := validate.StringField("answer", req.Answer, model.MaxAnswerLen)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cardType := model.CardType(req.Type)
+	if !cardType.Valid() {
+		cardType = model.CardTypeConceito
+	}
+	card, err := h.svc.CreateMyCard(r.Context(), id, question, answer, cardType)
+	if err != nil {
+		if errors.Is(err, service.ErrForbidden) || errors.Is(err, sql.ErrNoRows) {
+			Error(w, http.StatusForbidden, "deck não encontrado ou sem permissão")
+			return
+		}
+		if errors.Is(err, repository.ErrCardQuestionTaken) {
+			Error(w, http.StatusConflict, "já existe um card com esta pergunta neste deck")
+			return
+		}
+		Error(w, http.StatusInternalServerError, "failed to create card")
+		return
+	}
+	JSON(w, http.StatusCreated, card)
+}
+
+// UpdateMyCard updates a card in a student's private deck.
+func (h *ContentHandler) UpdateMyCard(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := validate.UUID("id", id); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	var req struct {
+		Question string `json:"question"`
+		Answer   string `json:"answer"`
+		Type     string `json:"type"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	question, err := validate.StringField("question", req.Question, model.MaxQuestionLen)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	answer, err := validate.StringField("answer", req.Answer, model.MaxAnswerLen)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cardType := model.CardType(req.Type)
+	if !cardType.Valid() {
+		cardType = model.CardTypeConceito
+	}
+	if err := h.svc.UpdateMyCard(r.Context(), id, question, answer, cardType); err != nil {
+		if errors.Is(err, service.ErrForbidden) || errors.Is(err, sql.ErrNoRows) {
+			Error(w, http.StatusForbidden, "card não encontrado ou sem permissão")
+			return
+		}
+		if errors.Is(err, repository.ErrCardQuestionTaken) {
+			Error(w, http.StatusConflict, "já existe um card com esta pergunta neste deck")
+			return
+		}
+		Error(w, http.StatusInternalServerError, "failed to update card")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DeleteMyCard removes a card from a student's private deck.
+func (h *ContentHandler) DeleteMyCard(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := validate.UUID("id", id); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.svc.DeleteMyCard(r.Context(), id); err != nil {
+		if errors.Is(err, service.ErrForbidden) || errors.Is(err, sql.ErrNoRows) {
+			Error(w, http.StatusForbidden, "card não encontrado ou sem permissão")
+			return
+		}
+		Error(w, http.StatusInternalServerError, "failed to delete card")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

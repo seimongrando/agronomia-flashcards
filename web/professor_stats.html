@@ -51,6 +51,34 @@
             <!-- ── Overview cards ────────────────────────────────────── -->
             <div class="prog-grid" role="list" aria-label="Visão geral" id="overview-grid"></div>
 
+            <!-- ── Class overview ────────────────────────────────────── -->
+            <div class="section" id="classes-section">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+                    <div class="section-title" style="margin-bottom:0">Visão por Turma</div>
+                    <a href="/classes.html" class="btn btn-sm btn-outline">Gerenciar turmas →</a>
+                </div>
+                <div class="table-wrap">
+                    <table class="prog-table" aria-label="Visão por turma">
+                        <thead>
+                            <tr>
+                                <th>Turma</th>
+                                <th class="num">Inscritos</th>
+                                <th class="num">Ativos 7d</th>
+                                <th class="num">Revisões 7d</th>
+                                <th class="num">Decks</th>
+                                <th class="num">Acerto %</th>
+                                <th class="num">Última atividade</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="class-overview-tbody"></tbody>
+                    </table>
+                </div>
+                <p id="no-classes-msg" class="text-muted hidden" style="padding:.75rem 0">
+                    Nenhuma turma criada ainda. <a href="/classes.html">Criar turma →</a>
+                </p>
+            </div>
+
             <!-- ── Per-deck table ────────────────────────────────────── -->
             <div class="section">
                 <div class="section-title">Engajamento por Deck</div>

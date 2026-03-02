@@ -19,7 +19,7 @@ type DeckRepo struct{ db DBTX }
 
 func NewDeckRepo(db DBTX) *DeckRepo { return &DeckRepo{db: db} }
 
-const deckCols = `id, name, description, subject, is_active, expires_at, created_at, created_by`
+const deckCols = `id, name, description, subject, is_active, is_private, expires_at, created_at, created_by`
 
 func scanDeck(row interface {
 	Scan(dest ...any) error
@@ -27,7 +27,7 @@ func scanDeck(row interface {
 	var d model.Deck
 	var desc, subj, createdBy sql.NullString
 	var exp sql.NullTime
-	if err := row.Scan(&d.ID, &d.Name, &desc, &subj, &d.IsActive, &exp, &d.CreatedAt, &createdBy); err != nil {
+	if err := row.Scan(&d.ID, &d.Name, &desc, &subj, &d.IsActive, &d.IsPrivate, &exp, &d.CreatedAt, &createdBy); err != nil {
 		return model.Deck{}, err
 	}
 	d.Description = toStringPtr(desc)
@@ -40,9 +40,10 @@ func scanDeck(row interface {
 	return d, nil
 }
 
-func (r *DeckRepo) Create(ctx context.Context, name string, description, subject *string, createdBy string) (model.Deck, error) {
-	q := `INSERT INTO decks (name, description, subject, created_by) VALUES ($1, $2, $3, $4) RETURNING ` + deckCols
-	d, err := scanDeck(r.db.QueryRowContext(ctx, q, name, toNullString(description), toNullString(subject), createdBy))
+// Create inserts a new deck. isPrivate=true marks it as a student personal deck.
+func (r *DeckRepo) Create(ctx context.Context, name string, description, subject *string, createdBy string, isPrivate bool) (model.Deck, error) {
+	q := `INSERT INTO decks (name, description, subject, created_by, is_private) VALUES ($1, $2, $3, $4, $5) RETURNING ` + deckCols
+	d, err := scanDeck(r.db.QueryRowContext(ctx, q, name, toNullString(description), toNullString(subject), createdBy, isPrivate))
 	if err != nil {
 		if isUniqueViolation(err) {
 			return model.Deck{}, ErrDeckNameTaken
@@ -74,6 +75,35 @@ func (r *DeckRepo) FindByName(ctx context.Context, name string) (model.Deck, err
 		return model.Deck{}, fmt.Errorf("deck find by name: %w", err)
 	}
 	return d, nil
+}
+
+// ListPrivateByOwner returns all private decks created by the given user,
+// including empty ones — used by the student's personal deck management page.
+func (r *DeckRepo) ListPrivateByOwner(ctx context.Context, userID string) ([]model.DeckWithCount, error) {
+	const q = `
+		SELECT d.id, d.name, COUNT(c.id)::int AS total_cards
+		FROM decks d
+		LEFT JOIN cards c ON c.deck_id = d.id
+		WHERE d.is_private = true AND d.created_by = $1
+		GROUP BY d.id, d.name
+		ORDER BY d.name ASC`
+	rows, err := r.db.QueryContext(ctx, q, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list private decks: %w", err)
+	}
+	defer rows.Close()
+	var out []model.DeckWithCount
+	for rows.Next() {
+		var d model.DeckWithCount
+		if err := rows.Scan(&d.ID, &d.Name, &d.TotalCards); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	if out == nil {
+		out = []model.DeckWithCount{}
+	}
+	return out, rows.Err()
 }
 
 func (r *DeckRepo) List(ctx context.Context) ([]model.Deck, error) {
@@ -174,7 +204,7 @@ func (r *DeckRepo) FindOrCreateByName(ctx context.Context, name, createdBy strin
 	var exp sql.NullTime
 	var wasCreated bool
 	err := r.db.QueryRowContext(ctx, q, name, createdBy).Scan(
-		&d.ID, &d.Name, &desc, &subj, &d.IsActive, &exp, &d.CreatedAt, &cb, &wasCreated,
+		&d.ID, &d.Name, &desc, &subj, &d.IsActive, &d.IsPrivate, &exp, &d.CreatedAt, &cb, &wasCreated,
 	)
 	d.Description = toStringPtr(desc)
 	d.Subject = toStringPtr(subj)

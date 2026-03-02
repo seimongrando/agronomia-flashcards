@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Turma &mdash; Agronomia Flashcards</title>
+    <meta name="theme-color" content="#2E7D32">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Agro Cards">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="topbar" role="banner">
+    <div class="wrap">
+        <a href="/classes.html" class="topbar-back hidden" id="topbar-back" aria-label="Voltar para turmas">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </a>
+        <a href="/" class="topbar-brand" aria-label="Agronomia Flashcards – início">
+            <svg class="brand-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                <path d="M12 22V12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M12 13C13 10 16 8 19 8C19 11 16.5 13.5 12 13Z" fill="currentColor"/>
+                <path d="M12 17C11 14 8 12 5 12C5 15 7.5 17.5 12 17Z" fill="currentColor" opacity="0.6"/>
+                <path d="M9 22Q12 20.5 15 22" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+            </svg>
+            <span class="brand-name">Agronomia<span class="brand-sub"> – Flashcards</span></span>
+        </a>
+        <div id="topbar-right"></div>
+    </div>
+</header>
+
+<main>
+    <div class="wrap">
+        <div id="spinner" class="spinner" style="margin:3rem auto" role="status" aria-label="Carregando…"></div>
+        <div id="access-denied" class="hidden" style="text-align:center;padding:3rem">
+            <p>Esta página é restrita a professores e administradores.</p>
+        </div>
+
+        <div id="page-content" class="hidden">
+
+            <!-- Header -->
+            <div class="page-header" style="margin-bottom:1.2rem">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+                    <div>
+                        <h1 id="class-title" class="page-title">Turma</h1>
+                        <p id="class-desc" class="page-subtitle hidden"></p>
+                    </div>
+                    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                        <span id="class-status-badge" class="badge badge-green">Ativa</span>
+                        <button id="btn-toggle-active" class="btn btn-outline btn-sm">Desativar</button>
+                        <button id="btn-delete-class" class="btn btn-sm" style="background:#b71c1c;color:#fff;border-color:#b71c1c">Excluir</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="class-tabs" role="tablist" aria-label="Seções da turma">
+                <button class="class-tab class-tab--active" role="tab" aria-selected="true"  data-tab="decks">Decks</button>
+                <button class="class-tab"                   role="tab" aria-selected="false" data-tab="stats">Desempenho</button>
+                <button class="class-tab"                   role="tab" aria-selected="false" data-tab="settings">Configurações</button>
+            </div>
+
+            <!-- ── Tab: Decks ─────────────────────────────────────────── -->
+            <div id="tab-decks" class="tab-panel">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+                    <div class="section-title" style="margin-bottom:0">Decks da Turma</div>
+                    <button id="btn-add-deck" class="btn btn-primary btn-sm">+ Adicionar deck</button>
+                </div>
+                <div id="add-deck-panel" class="hidden card" style="padding:.9rem;margin-bottom:.75rem">
+                    <p class="text-muted" style="font-size:.85rem;margin-bottom:.6rem">Selecione um deck para adicionar à turma</p>
+                    <div style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
+                        <div class="field" style="flex:1;min-width:200px">
+                            <select id="deck-select" class="input" aria-label="Selecionar deck">
+                                <option value="">— escolha um deck —</option>
+                            </select>
+                        </div>
+                        <button id="btn-confirm-add-deck" class="btn btn-primary btn-sm">Adicionar</button>
+                        <button id="btn-cancel-add-deck" class="btn btn-outline btn-sm">Cancelar</button>
+                    </div>
+                </div>
+                <div id="deck-list" class="class-deck-list" role="list" aria-label="Decks da turma">
+                    <p class="text-muted" style="padding:.5rem 0">Nenhum deck associado ainda.</p>
+                </div>
+            </div>
+
+            <!-- ── Tab: Desempenho ────────────────────────────────────── -->
+            <div id="tab-stats" class="tab-panel hidden">
+                <div id="stats-spinner" class="spinner" style="margin:2rem auto" role="status" aria-label="Carregando…"></div>
+
+                <div id="stats-content" class="hidden">
+                    <!-- Summary KPIs -->
+                    <div class="stats-kpi-grid" style="margin-bottom:1.5rem">
+                        <div class="stats-kpi">
+                            <div class="stats-kpi__value" id="kpi-members">–</div>
+                            <div class="stats-kpi__label">Inscritos</div>
+                        </div>
+                        <div class="stats-kpi">
+                            <div class="stats-kpi__value" id="kpi-active">–</div>
+                            <div class="stats-kpi__label">Já estudaram</div>
+                        </div>
+                        <div class="stats-kpi">
+                            <div class="stats-kpi__value" id="kpi-active7">–</div>
+                            <div class="stats-kpi__label">Ativos (7d)</div>
+                        </div>
+                        <div class="stats-kpi">
+                            <div class="stats-kpi__value" id="kpi-reviews7">–</div>
+                            <div class="stats-kpi__label">Revisões (7d)</div>
+                        </div>
+                        <div class="stats-kpi">
+                            <div class="stats-kpi__value" id="kpi-accuracy">–</div>
+                            <div class="stats-kpi__label">Taxa de acerto</div>
+                        </div>
+                        <div class="stats-kpi">
+                            <div class="stats-kpi__value" id="kpi-cards">–</div>
+                            <div class="stats-kpi__label">Total de cartas</div>
+                        </div>
+                    </div>
+
+                    <!-- Per-deck breakdown -->
+                    <div class="section">
+                        <div class="section-title">Desempenho por Deck</div>
+                        <div id="deck-stats-list" class="deck-perf-grid"></div>
+                    </div>
+
+                    <!-- Hardest cards -->
+                    <div class="section" id="hard-cards-section">
+                        <div class="section-title">Cards mais difíceis da turma</div>
+                        <p class="text-muted" style="font-size:.82rem;margin-bottom:.75rem">
+                            Cards com maior proporção de respostas "Errei" ou "Difícil" (mínimo 3 revisões por card).
+                        </p>
+                        <div id="hard-cards-list" class="hard-cards-list"></div>
+                    </div>
+                </div>
+
+                <div id="stats-empty" class="hidden" style="text-align:center;padding:2rem;color:var(--text-muted)">
+                    Nenhum dado de estudo ainda. Os relatórios aparecem assim que os alunos começarem a estudar.
+                </div>
+            </div>
+
+            <!-- ── Tab: Configurações ─────────────────────────────────── -->
+            <div id="tab-settings" class="tab-panel hidden">
+                <div class="section">
+                    <div class="section-title">Código de Acesso</div>
+                    <div class="card" style="padding:1rem;max-width:440px">
+                        <p class="text-muted" style="font-size:.82rem;margin-bottom:.6rem">
+                            Compartilhe este código com seus alunos para que eles possam se inscrever na turma.
+                        </p>
+                        <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+                            <span id="invite-code-display"
+                                  style="font-size:1.6rem;font-weight:800;letter-spacing:.18em;color:var(--primary);font-family:monospace"></span>
+                            <button id="btn-copy-code" class="btn btn-outline btn-sm">Copiar</button>
+                            <button id="btn-regen-code" class="btn btn-ghost btn-sm">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M23 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Novo código
+                            </button>
+                        </div>
+                        <p id="member-count-text" class="text-muted" style="font-size:.82rem;margin-top:.6rem"></p>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /page-content -->
+    </div>
+</main>
+
+<script src="/static/js/app.js"></script>
+<script src="/static/js/class_manage.js"></script>
+</body>
+</html>

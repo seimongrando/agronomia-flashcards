@@ -100,7 +100,30 @@
                 <!-- Active deck context bar (shown above the grid when a deck is selected) -->
                 <div id="active-deck-bar" class="hidden active-deck-bar" style="margin-bottom:.6rem">
                     <div id="active-deck-info"></div>
-                    <a id="deck-manage-link" href="#" class="btn btn-outline btn-sm" style="white-space:nowrap">Gerenciar →</a>
+                    <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+                        <button id="btn-assign-class" class="btn btn-ghost btn-sm" title="Vincular a uma turma" style="font-size:.78rem">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            Turma
+                        </button>
+                        <a id="deck-manage-link" href="#" class="btn btn-outline btn-sm" style="white-space:nowrap">Gerenciar →</a>
+                    </div>
+                </div>
+
+                <!-- Assign to class popup -->
+                <div id="assign-class-popup" class="hidden card" style="padding:.9rem;margin-bottom:.75rem;border:1px solid var(--primary)">
+                    <p class="text-muted" style="font-size:.83rem;margin-bottom:.5rem">Associar este deck a uma turma</p>
+                    <div style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
+                        <select id="assign-class-select" class="input" style="flex:1;min-width:180px" aria-label="Selecionar turma">
+                            <option value="">— selecione a turma —</option>
+                        </select>
+                        <button id="btn-confirm-assign" class="btn btn-primary btn-sm">Associar</button>
+                        <button id="btn-cancel-assign" class="btn btn-outline btn-sm">Cancelar</button>
+                    </div>
+                    <p id="assign-result" class="hidden text-muted" style="font-size:.82rem;margin-top:.4rem"></p>
                 </div>
 
                 <!-- Visual deck grid -->

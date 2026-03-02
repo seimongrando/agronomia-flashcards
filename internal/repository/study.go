@@ -19,17 +19,20 @@ type DeckListParams struct {
 	CursorName string // empty = first page
 	CursorID   string
 	Limit      int
-	// ShowAll skips the is_active / expires_at filter.
-	// Use true for professor/admin management views; false (default) for student home.
+	// ShowAll skips the is_active / expires_at filter (professor/admin management views).
 	ShowAll bool
-	// HideEmpty filters out decks with no cards (used on the home page for all roles).
-	// Management views (teach page) set this to false to show empty decks.
+	// HideEmpty filters out decks with no cards (home page). Management views set false.
 	HideEmpty bool
+	// ApplyVisibility enforces student-facing visibility rules:
+	//   - user's own private decks
+	//   - decks in classes the user is enrolled in
+	//   - general decks (not private, no class assignments)
+	// When false (management view) all matching decks are returned without class filter.
+	ApplyVisibility bool
 }
 
 // ListDecksWithCountsPaged returns a page of decks ordered by (name ASC, id ASC),
-// enriched with per-user card counts.
-// When ShowAll is false, inactive and expired decks are hidden (student view).
+// enriched with per-user card counts and optional class context.
 func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListParams) ([]model.DeckWithCounts, error) {
 	var sb strings.Builder
 	var args []any
@@ -40,20 +43,58 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 	}
 
 	uid := nextArg(p.UserID)
-	sb.WriteString(`
-		SELECT d.id, d.name, d.description, d.subject, d.is_active, d.expires_at, d.created_at, d.created_by,
+
+	// Class context subqueries — only emitted when ApplyVisibility is set
+	// so that the student sees which class each deck belongs to.
+	classIDExpr := "NULL::text"
+	classNameExpr := "NULL::text"
+	if p.ApplyVisibility {
+		classIDExpr = fmt.Sprintf(`(
+			SELECT cl.id FROM class_decks cd
+			JOIN classes cl ON cl.id = cd.class_id
+			JOIN class_members cm ON cm.class_id = cd.class_id AND cm.user_id = %s
+			WHERE cd.deck_id = d.id ORDER BY cl.name ASC LIMIT 1
+		)`, uid)
+		classNameExpr = fmt.Sprintf(`(
+			SELECT cl.name FROM class_decks cd
+			JOIN classes cl ON cl.id = cd.class_id
+			JOIN class_members cm ON cm.class_id = cd.class_id AND cm.user_id = %s
+			WHERE cd.deck_id = d.id ORDER BY cl.name ASC LIMIT 1
+		)`, uid)
+	}
+
+	fmt.Fprintf(&sb, `
+		SELECT d.id, d.name, d.description, d.subject, d.is_active, d.is_private,
+		       d.expires_at, d.created_at, d.created_by,
+		       %s AS class_id, %s AS class_name,
 		       COUNT(c.id)::int AS total_cards,
 		       COUNT(CASE WHEN c.id IS NOT NULL AND (rv.id IS NULL OR rv.next_due <= now()) THEN 1 END)::int AS due_now,
 		       MAX(rv.updated_at) AS last_studied,
 		       MIN(rv.next_due) FILTER (WHERE rv.next_due > now()) AS next_review
 		FROM decks d
 		LEFT JOIN cards c    ON c.deck_id = d.id
-		LEFT JOIN reviews rv ON rv.card_id = c.id AND rv.user_id = ` + uid + `
-		WHERE 1=1`)
+		LEFT JOIN reviews rv ON rv.card_id = c.id AND rv.user_id = %s
+		WHERE 1=1`, classIDExpr, classNameExpr, uid)
 
-	// Students only see enabled, non-expired decks
 	if !p.ShowAll {
 		sb.WriteString(` AND d.is_active = true AND (d.expires_at IS NULL OR d.expires_at > now())`)
+	}
+
+	// Student visibility: private-owned OR in-class OR general (no class assignment).
+	if p.ApplyVisibility {
+		fmt.Fprintf(&sb, `
+		AND (
+		  (d.is_private = true AND d.created_by = %s)
+		  OR EXISTS (
+		    SELECT 1 FROM class_decks cd
+		    JOIN class_members cm ON cm.class_id = cd.class_id
+		    WHERE cd.deck_id = d.id AND cm.user_id = %s
+		  )
+		  OR (
+		    d.is_private = false
+		    AND NOT EXISTS (SELECT 1 FROM class_decks cd WHERE cd.deck_id = d.id)
+		  )
+		)`, uid, uid)
 	}
 
 	if p.CursorName != "" || p.CursorID != "" {
@@ -66,9 +107,6 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 
 	sb.WriteString(` GROUP BY d.id`)
 
-	// HideEmpty filters out decks with no cards.
-	// Used by the home page (all roles). The management endpoint (teach page)
-	// sets HideEmpty=false so professors can see and populate empty decks.
 	if p.HideEmpty {
 		sb.WriteString(` HAVING COUNT(c.id) > 0`)
 	}
@@ -86,15 +124,22 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 	for rows.Next() {
 		var d model.DeckWithCounts
 		var desc, subj, createdBy sql.NullString
+		var classID, className sql.NullString
 		var exp sql.NullTime
 		var lastStudied, nextRv sql.NullTime
-		if err := rows.Scan(&d.ID, &d.Name, &desc, &subj, &d.IsActive, &exp, &d.CreatedAt, &createdBy,
-			&d.TotalCards, &d.DueNow, &lastStudied, &nextRv); err != nil {
+		if err := rows.Scan(
+			&d.ID, &d.Name, &desc, &subj, &d.IsActive, &d.IsPrivate,
+			&exp, &d.CreatedAt, &createdBy,
+			&classID, &className,
+			&d.TotalCards, &d.DueNow, &lastStudied, &nextRv,
+		); err != nil {
 			return nil, fmt.Errorf("deck counts scan: %w", err)
 		}
 		d.Description = toStringPtr(desc)
 		d.Subject = toStringPtr(subj)
 		d.CreatedBy = toStringPtr(createdBy)
+		d.ClassID = toStringPtr(classID)
+		d.ClassName = toStringPtr(className)
 		if exp.Valid {
 			t := exp.Time
 			d.ExpiresAt = &t

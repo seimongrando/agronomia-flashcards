@@ -117,6 +117,10 @@
             if (!opts.noNav) {
                 nav = '<nav class="topbar-nav" aria-label="Navegação principal">';
                 nav += '<a href="/" class="nav-link">Início</a>';
+                nav += '<a href="/classes.html" class="nav-link">Turmas</a>';
+                if (!isStaff) {
+                    nav += '<a href="/my_decks.html" class="nav-link">Meus Cards</a>';
+                }
                 nav += '<a href="/progress.html" class="nav-link">Progresso</a>';
                 if (isStaff) {
                     nav += '<a href="/teach.html" class="nav-link">Gerenciar</a>';
@@ -154,6 +158,7 @@
                             '<div class="user-menu-roles">' + roleBadges + '</div>' +
                         '</div>' +
                         '<div class="user-menu-divider"></div>' +
+                        '<a href="/classes.html" class="user-menu-item" role="menuitem">Turmas</a>' +
                         (isStaff
                             ? '<a href="/teach.html" class="user-menu-item" role="menuitem">Gerenciar conteúdo</a>'
                             : '') +

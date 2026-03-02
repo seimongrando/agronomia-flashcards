@@ -114,13 +114,21 @@
             return;
         }
 
-        // Build ordered groups: subjects alphabetically, then null-subject group last
-        var groups    = {};   // subject -> [deck]
-        var order     = [];   // ordered subject keys
-        var noSubject = [];
+        // Separate private decks, class decks, and general decks
+        var privateDecks = [];
+        var classGroups  = {};   // class_name -> [deck]
+        var classOrder   = [];   // ordered class names
+        var groups       = {};   // subject -> [deck]
+        var order        = [];   // ordered subject keys
+        var noSubject    = [];
 
         decks.forEach(function (d) {
-            if (d.subject) {
+            if (d.is_private) {
+                privateDecks.push(d);
+            } else if (d.class_name) {
+                if (!classGroups[d.class_name]) { classGroups[d.class_name] = []; classOrder.push(d.class_name); }
+                classGroups[d.class_name].push(d);
+            } else if (d.subject) {
                 if (!groups[d.subject]) { groups[d.subject] = []; order.push(d.subject); }
                 groups[d.subject].push(d);
             } else {
@@ -129,6 +137,7 @@
         });
 
         order.sort(function (a, b) { return a.localeCompare(b, "pt"); });
+        classOrder.sort(function (a, b) { return a.localeCompare(b, "pt"); });
 
         var chevronSvg =
             '<svg class="subject-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
@@ -137,6 +146,46 @@
 
         var html = "";
 
+        // Private decks section
+        if (privateDecks.length > 0) {
+            var key0      = "sg_collapsed__private";
+            var coll0     = sessionStorage.getItem(key0) === "1";
+            var sgCls0    = coll0 ? " subject-group--collapsed" : "";
+            var expanded0 = coll0 ? "false" : "true";
+            html += '<div class="subject-group' + sgCls0 + '" data-sg-key="' + key0 + '">' +
+                '<button class="subject-group__header subject-group__header--private" aria-expanded="' + expanded0 + '">' +
+                    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                    '<rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2"/>' +
+                    '<path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+                    '</svg>' +
+                    '<span>Meus Cards Pessoais</span>' +
+                    chevronSvg +
+                '</button>' +
+                '<div class="deck-grid">' + privateDecks.map(renderDeckCard).join("") + '</div>' +
+            '</div>';
+        }
+
+        // Class groups (turmas)
+        classOrder.forEach(function (className) {
+            var key1      = "sg_collapsed_class_" + className.replace(/\s+/g, "_");
+            var coll1     = sessionStorage.getItem(key1) === "1";
+            var sgCls1    = coll1 ? " subject-group--collapsed" : "";
+            var expanded1 = coll1 ? "false" : "true";
+            html += '<div class="subject-group' + sgCls1 + '" data-sg-key="' + key1 + '">' +
+                '<button class="subject-group__header subject-group__header--class" aria-expanded="' + expanded1 + '">' +
+                    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                    '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+                    '<circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/>' +
+                    '<path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+                    '</svg>' +
+                    '<span>' + app.esc(className) + '</span>' +
+                    chevronSvg +
+                '</button>' +
+                '<div class="deck-grid">' + classGroups[className].map(renderDeckCard).join("") + '</div>' +
+            '</div>';
+        });
+
+        // Subject groups (general decks)
         // Each subject group is collapsible; state persisted in sessionStorage.
         order.forEach(function (subj) {
             var key       = "sg_collapsed_" + subj;
@@ -226,11 +275,28 @@
 
     function renderDeckCard(d) {
         var status     = deckStatus(d);
-        var isDisabled = status !== "active"; // professor-only: deck hidden from students
+        var isDisabled = status !== "active";
 
-        var desc = d.description ? '<p class="deck-desc">' + app.esc(d.description) + '</p>' : '';
         var dueLabel   = d.due_now === 1 ? "1 para hoje" : d.due_now + " para hoje";
         var totalLabel = d.total_cards === 1 ? "1 carta" : d.total_cards + " cartas";
+        var studyBase  = "/study.html?deckId=" + d.id + "&deckName=" + encodeURIComponent(d.name) +
+                         (d.subject ? "&deckSubject=" + encodeURIComponent(d.subject) : "");
+
+        /* ── Deck type indicator ── */
+        var typeChip = "";
+        if (d.is_private) {
+            typeChip = '<span class="deck-type-chip deck-type-chip--private">' +
+                '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                '<rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2.2"/>' +
+                '<path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>' +
+                '</svg>Pessoal</span>';
+        } else if (d.class_name) {
+            typeChip = '<span class="deck-type-chip deck-type-chip--class">' +
+                '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>' +
+                '<circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2.2"/>' +
+                '</svg>' + app.esc(d.class_name) + '</span>';
+        }
 
         /* ── Inactive / expired banner (professors only) ── */
         var inactiveBanner = "";
@@ -252,29 +318,45 @@
         var dateInfo = "";
         if (!isDisabled) {
             if (d.last_studied) {
-                var ago = relativeDate(d.last_studied);
                 dateInfo += '<span class="deck-date">' +
                     '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0"><path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
-                    'Estudado ' + app.esc(ago) + '</span>';
+                    'Estudado ' + app.esc(relativeDate(d.last_studied)) + '</span>';
             } else {
                 dateInfo += '<span class="deck-date deck-date--new">' +
                     '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
                     'Nunca estudado</span>';
             }
             if (d.due_now === 0 && d.next_review) {
-                var nxt = relativeDate(d.next_review);
                 dateInfo += '<span class="deck-date deck-date--next">' +
                     '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-                    'Próxima revisão ' + app.esc(nxt) + '</span>';
+                    'Próxima revisão ' + app.esc(relativeDate(d.next_review)) + '</span>';
             }
         }
 
         var cardStyle = isDisabled ? ' style="opacity:.6;border-style:dashed"' : '';
 
+        /* ── Private deck: simpler card (no SM-2 buttons, go to my_deck.html) ── */
+        if (d.is_private && !isDisabled) {
+            return '<div class="card deck-card">' +
+                '<div class="deck-card__type-row">' + typeChip + '</div>' +
+                '<h3>' + app.esc(d.name) + '</h3>' +
+                '<div class="deck-meta">' +
+                    '<span class="badge badge-total">' + totalLabel + '</span>' +
+                '</div>' +
+                '<div class="deck-dates">' + dateInfo + '</div>' +
+                '<div class="deck-actions">' +
+                    '<a href="' + studyBase + '&mode=random" class="btn btn-sm btn-primary"' +
+                        (d.total_cards === 0 ? ' disabled aria-disabled="true" tabindex="-1"' : '') + '>Estudar</a>' +
+                    '<a href="/my_deck.html?deckId=' + d.id + '&deckName=' + encodeURIComponent(d.name) + '" class="btn btn-sm btn-outline">Cards</a>' +
+                '</div>' +
+            '</div>';
+        }
+
         return '<div class="card deck-card"' + cardStyle + '>' +
             inactiveBanner +
+            (typeChip ? '<div class="deck-card__type-row">' + typeChip + '</div>' : '') +
             '<h3>' + app.esc(d.name) + '</h3>' +
-            desc +
+            (d.description ? '<p class="deck-desc">' + app.esc(d.description) + '</p>' : '') +
             (isDisabled ? '' :
                 '<div class="deck-meta">' +
                     (d.due_now > 0
@@ -286,13 +368,11 @@
             ) +
             '<div class="deck-actions">' +
                 (isDisabled
-                    ? '<a href="/deck_manage.html?deckId=' + d.id + '&deckName=' + encodeURIComponent(d.name) +
-                      '" class="btn btn-sm btn-outline">Gerenciar</a>'
-                    : '<a href="/study.html?deckId=' + d.id + '&mode=due&deckName=' + encodeURIComponent(d.name) + (d.subject ? '&deckSubject=' + encodeURIComponent(d.subject) : '') + '" class="btn btn-sm btn-primary"' +
-                          (d.due_now === 0 ? ' disabled aria-disabled="true" tabindex="-1"' : '') +
-                          '>Revisar</a>' +
-                      '<a href="/study.html?deckId=' + d.id + '&mode=random&deckName=' + encodeURIComponent(d.name) + (d.subject ? '&deckSubject=' + encodeURIComponent(d.subject) : '') + '" class="btn btn-sm btn-outline">Aleat\u00f3rio</a>' +
-                      '<a href="/study.html?deckId=' + d.id + '&mode=wrong&deckName=' + encodeURIComponent(d.name) + (d.subject ? '&deckSubject=' + encodeURIComponent(d.subject) : '') + '" class="btn btn-sm btn-outline">Errei</a>'
+                    ? '<a href="/deck_manage.html?deckId=' + d.id + '&deckName=' + encodeURIComponent(d.name) + '" class="btn btn-sm btn-outline">Gerenciar</a>'
+                    : '<a href="' + studyBase + '&mode=due" class="btn btn-sm btn-primary"' +
+                          (d.due_now === 0 ? ' disabled aria-disabled="true" tabindex="-1"' : '') + '>Revisar</a>' +
+                      '<a href="' + studyBase + '&mode=random" class="btn btn-sm btn-outline">Aleatório</a>' +
+                      '<a href="' + studyBase + '&mode=wrong" class="btn btn-sm btn-outline">Errei</a>'
                 ) +
             '</div>' +
         '</div>';

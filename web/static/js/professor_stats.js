@@ -27,16 +27,17 @@
             window.app.renderTopbar(me);
         }
 
-        // ── Fetch stats ──────────────────────────────────────────────────────
-        window.api.get('/api/admin/stats')
-            .then(function (res) {
-                if (!res.ok) throw new Error('stats ' + res.status);
-                return res.json();
-            })
-            .then(function (stats) {
+        // ── Fetch stats (parallel) ───────────────────────────────────────────
+        Promise.all([
+            window.api.get('/api/admin/stats').then(function (r) { return r.ok ? r.json() : null; }),
+            window.api.get('/api/classes/overview').then(function (r) { return r.ok ? r.json() : null; }),
+        ]).then(function (results) {
+                var stats   = results[0] || {};
+                var classes = (results[1] && results[1].items) ? results[1].items : [];
                 spinner.classList.add('hidden');
                 content.classList.remove('hidden');
                 renderOverview(stats);
+                renderClassOverview(classes);
                 renderDeckTable(stats.decks || []);
                 renderHardCards(stats.hardest_cards || []);
             })
@@ -49,6 +50,33 @@
     });
 
     // ── Renderers ────────────────────────────────────────────────────────────
+
+    function renderClassOverview(classes) {
+        var tbody  = document.getElementById('class-overview-tbody');
+        var noMsg  = document.getElementById('no-classes-msg');
+        var section = document.getElementById('classes-section');
+        if (!tbody) return;
+
+        if (classes.length === 0) {
+            if (noMsg) noMsg.classList.remove('hidden');
+            return;
+        }
+        tbody.innerHTML = classes.map(function (c) {
+            var engPct = c.total_members > 0 ? Math.round(c.active_last_7d / c.total_members * 100) : 0;
+            var accColor = c.accuracy_pct >= 70 ? '#1B5E20' : c.accuracy_pct >= 40 ? '#E65100' : '#B71C1C';
+            var lastAct = c.last_activity ? new Date(c.last_activity).toLocaleDateString('pt-BR') : '—';
+            return '<tr>' +
+                '<td><a href="/class_manage.html?classId=' + c.class_id + '" style="font-weight:600;color:var(--primary)">' + esc(c.class_name) + '</a></td>' +
+                '<td class="num">' + c.total_members + '</td>' +
+                '<td class="num">' + c.active_last_7d + ' <span class="text-muted" style="font-size:.78rem">(' + engPct + '%)</span></td>' +
+                '<td class="num">' + c.reviews_last_7d + '</td>' +
+                '<td class="num">' + c.deck_count + '</td>' +
+                '<td class="num" style="font-weight:700;color:' + accColor + '">' + fmt1(c.accuracy_pct) + '%</td>' +
+                '<td class="num" style="font-size:.82rem;color:var(--text-muted)">' + lastAct + '</td>' +
+                '<td><a href="/class_manage.html?classId=' + c.class_id + '&tab=stats" class="btn btn-ghost btn-sm">Detalhar</a></td>' +
+            '</tr>';
+        }).join('');
+    }
 
     function renderOverview(stats) {
         var items = [
@@ -150,4 +178,6 @@
     function trunc(s, n) {
         return s && s.length > n ? s.slice(0, n) + '…' : s;
     }
+
+    function fmt1(n) { return (Math.round((n || 0) * 10) / 10).toFixed(1); }
 })();

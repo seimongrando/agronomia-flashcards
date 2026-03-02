@@ -67,7 +67,7 @@ func (s *ContentService) checkCardDeckOwnership(ctx context.Context, deckID stri
 
 func (s *ContentService) CreateDeck(ctx context.Context, name string, desc, subject *string) (model.Deck, error) {
 	auth := authFromCtx(ctx)
-	return s.decks.Create(ctx, name, desc, subject, auth.UserID)
+	return s.decks.Create(ctx, name, desc, subject, auth.UserID, false)
 }
 
 func (s *ContentService) UpdateDeck(ctx context.Context, id, name string, desc, subject *string) (model.Deck, error) {
@@ -353,6 +353,99 @@ func (s *ContentService) ImportCSV(ctx context.Context, userID, filename string,
 		InvalidCount:  invalid,
 		DecksCreated:  decksCreated,
 	}, nil
+}
+
+// --- Student private deck management ---
+
+// ListMyDecks returns all private decks for the calling user (including empty ones).
+func (s *ContentService) ListMyDecks(ctx context.Context) ([]model.DeckWithCount, error) {
+	auth := authFromCtx(ctx)
+	return s.decks.ListPrivateByOwner(ctx, auth.UserID)
+}
+
+// CreateMyDeck creates a private deck owned by the calling student.
+func (s *ContentService) CreateMyDeck(ctx context.Context, name string, desc *string) (model.Deck, error) {
+	auth := authFromCtx(ctx)
+	return s.decks.Create(ctx, name, desc, nil, auth.UserID, true)
+}
+
+// DeleteMyDeck deletes a private deck, enforcing that the caller is the owner.
+func (s *ContentService) DeleteMyDeck(ctx context.Context, deckID string) error {
+	deck, err := s.decks.FindByID(ctx, deckID)
+	if err != nil {
+		return err
+	}
+	auth := authFromCtx(ctx)
+	if !deck.IsOwnedBy(auth.UserID) || !deck.IsPrivate {
+		return ErrForbidden
+	}
+	return s.decks.Delete(ctx, deckID)
+}
+
+// checkMyDeckOwnership verifies the deck is private and owned by the calling user.
+func (s *ContentService) checkMyDeckOwnership(ctx context.Context, deckID string) (model.Deck, error) {
+	deck, err := s.decks.FindByID(ctx, deckID)
+	if err != nil {
+		return model.Deck{}, err
+	}
+	auth := authFromCtx(ctx)
+	if !deck.IsOwnedBy(auth.UserID) || !deck.IsPrivate {
+		return model.Deck{}, ErrForbidden
+	}
+	return deck, nil
+}
+
+// checkMyCardOwnership fetches a card and verifies ownership of its parent private deck.
+func (s *ContentService) checkMyCardOwnership(ctx context.Context, cardID string) (model.Card, error) {
+	card, err := s.cards.FindByID(ctx, cardID)
+	if err != nil {
+		return model.Card{}, err
+	}
+	if _, err := s.checkMyDeckOwnership(ctx, card.DeckID); err != nil {
+		return model.Card{}, err
+	}
+	return card, nil
+}
+
+// ListMyDeckCards returns all cards for a student's private deck.
+func (s *ContentService) ListMyDeckCards(ctx context.Context, deckID string) ([]model.Card, error) {
+	if _, err := s.checkMyDeckOwnership(ctx, deckID); err != nil {
+		return nil, err
+	}
+	return s.cards.ListByDeck(ctx, deckID)
+}
+
+// CreateMyCard adds a card to a student's private deck.
+func (s *ContentService) CreateMyCard(ctx context.Context, deckID, question, answer string, cardType model.CardType) (model.Card, error) {
+	if _, err := s.checkMyDeckOwnership(ctx, deckID); err != nil {
+		return model.Card{}, err
+	}
+	return s.cards.Create(ctx, model.Card{
+		DeckID:   deckID,
+		Type:     cardType,
+		Question: question,
+		Answer:   answer,
+	})
+}
+
+// UpdateMyCard updates a card belonging to a student's private deck.
+func (s *ContentService) UpdateMyCard(ctx context.Context, cardID, question, answer string, cardType model.CardType) error {
+	card, err := s.checkMyCardOwnership(ctx, cardID)
+	if err != nil {
+		return err
+	}
+	card.Question = question
+	card.Answer = answer
+	card.Type = cardType
+	return s.cards.Update(ctx, card)
+}
+
+// DeleteMyCard removes a card from a student's private deck.
+func (s *ContentService) DeleteMyCard(ctx context.Context, cardID string) error {
+	if _, err := s.checkMyCardOwnership(ctx, cardID); err != nil {
+		return err
+	}
+	return s.cards.Delete(ctx, cardID)
 }
 
 // ExportDeckCSV returns all cards for a deck ordered by created_at.

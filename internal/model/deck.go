@@ -8,9 +8,17 @@ type Deck struct {
 	Description *string    `json:"description,omitempty"`
 	Subject     *string    `json:"subject,omitempty"`
 	IsActive    bool       `json:"is_active"`
+	IsPrivate   bool       `json:"is_private"`
 	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	CreatedBy   *string    `json:"created_by,omitempty"` // professor/admin who owns this deck
+}
+
+// DeckWithCount is a lightweight DTO for student private deck listings.
+type DeckWithCount struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	TotalCards int    `json:"total_cards"`
 }
 
 // IsOwnedBy returns true if the deck was created by the given userID.

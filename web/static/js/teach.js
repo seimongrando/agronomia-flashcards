@@ -99,6 +99,14 @@
     var btnBulkCancel    = document.getElementById("btn-bulk-cancel");
     var btnBulkSelectAll = document.getElementById("btn-bulk-select-all");
 
+    // Assign-to-class refs
+    var btnAssignClass    = document.getElementById("btn-assign-class");
+    var assignClassPopup  = document.getElementById("assign-class-popup");
+    var assignClassSelect = document.getElementById("assign-class-select");
+    var btnConfirmAssign  = document.getElementById("btn-confirm-assign");
+    var btnCancelAssign   = document.getElementById("btn-cancel-assign");
+    var assignResult      = document.getElementById("assign-result");
+
     /* ── Helpers ─────────────────────────────────── */
     function canEditDeck(deck) {
         if (isAdmin) return true;
@@ -126,6 +134,8 @@
             if (btnSelectMode) btnSelectMode.classList.remove("hidden");
             loadDecks();
             wireSelectionMode();
+            loadClassesForAssign();
+            wireAssignClass();
         });
     }
 
@@ -701,6 +711,47 @@
     function trunc(s, n) {
         if (!s) return "";
         return s.length > n ? s.slice(0, n) + "…" : s;
+    }
+
+    /* ── Assign deck to class ────────────────────────── */
+    function loadClassesForAssign() {
+        api.get("/api/classes").then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                var items = data && data.items ? data.items : [];
+                if (!assignClassSelect) return;
+                while (assignClassSelect.options.length > 1) assignClassSelect.remove(1);
+                items.filter(function (c) { return c.is_active; }).forEach(function (c) {
+                    var opt = document.createElement("option");
+                    opt.value = c.id;
+                    opt.textContent = c.name;
+                    assignClassSelect.appendChild(opt);
+                });
+            });
+    }
+
+    function wireAssignClass() {
+        if (btnAssignClass) btnAssignClass.addEventListener("click", function () {
+            if (!currentDeckID) return;
+            if (assignClassPopup) assignClassPopup.classList.remove("hidden");
+            if (assignResult) assignResult.classList.add("hidden");
+        });
+        if (btnCancelAssign) btnCancelAssign.addEventListener("click", function () {
+            if (assignClassPopup) assignClassPopup.classList.add("hidden");
+        });
+        if (btnConfirmAssign) btnConfirmAssign.addEventListener("click", function () {
+            var classId = assignClassSelect ? assignClassSelect.value : "";
+            if (!classId) { toast("Selecione uma turma.", "error"); return; }
+            if (!currentDeckID) { toast("Nenhum deck selecionado.", "error"); return; }
+            btnConfirmAssign.disabled = true;
+            api.post("/api/classes/" + classId + "/decks", { deck_id: currentDeckID })
+                .then(function (r) {
+                    if (!r.ok) return r.json().then(function (e) { throw new Error(e.detail || "Erro ao associar deck"); });
+                    if (assignClassPopup) assignClassPopup.classList.add("hidden");
+                    toast("Deck associado à turma!", "success");
+                })
+                .catch(function (e) { toast(e.message, "error"); })
+                .finally(function () { btnConfirmAssign.disabled = false; });
+        });
     }
 
     init();

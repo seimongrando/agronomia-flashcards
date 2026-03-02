@@ -52,6 +52,8 @@ func main() {
 	reviewRepo := repository.NewReviewRepo(db)
 	studyRepo := repository.NewStudyRepo(db)
 	uploadRepo := repository.NewUploadRepo(db)
+	classRepo := repository.NewClassRepo(db)
+	classStatsRepo := repository.NewClassStatsRepo(db)
 
 	// Services
 	healthSvc := service.NewHealthService(db)
@@ -59,6 +61,7 @@ func main() {
 	studySvc := service.NewStudyService(studyRepo, cardRepo, reviewRepo)
 	contentSvc := service.NewContentService(db, deckRepo, cardRepo, uploadRepo)
 	adminSvc := service.NewAdminService(userRepo, logger)
+	classSvc := service.NewClassService(classRepo, classStatsRepo)
 
 	// OAuth
 	oauthCfg := &oauth2.Config{
@@ -76,12 +79,14 @@ func main() {
 	studyH := handler.NewStudyHandler(studySvc)
 	contentH := handler.NewContentHandler(contentSvc)
 	adminH := handler.NewAdminHandler(adminSvc)
+	classH := handler.NewClassHandler(classSvc)
 
 	// --- Access-level helpers (RBAC) ---
 	jwtSecret := []byte(cfg.JWTSecret)
 	authOnly := middleware.RequireAuth(jwtSecret)
 	contentMgmt := middleware.Chain(middleware.RequireAuth(jwtSecret), middleware.RequireRole("professor", "admin"))
 	adminOnly := middleware.Chain(middleware.RequireAuth(jwtSecret), middleware.RequireRole("admin"))
+	staffOnly := middleware.Chain(middleware.RequireAuth(jwtSecret), middleware.RequireRole("professor", "admin"))
 
 	mux := http.NewServeMux()
 
@@ -121,6 +126,32 @@ func main() {
 	// Professor / admin stats (no individual student data — aggregates only)
 	mux.Handle("GET /api/admin/stats", contentMgmt(http.HandlerFunc(studyH.ProfessorStats)))
 
+	// Classes — authenticated (all roles can list/join; staff can create/manage).
+	// Exact-path routes are listed before wildcard routes for clarity
+	// (Go 1.22+ mux resolves by specificity regardless of order, but explicit is clearer).
+	mux.Handle("GET /api/classes", authOnly(http.HandlerFunc(classH.ListMyClasses)))
+	mux.Handle("POST /api/classes", staffOnly(http.HandlerFunc(classH.CreateClass)))
+	mux.Handle("POST /api/classes/join", authOnly(http.HandlerFunc(classH.JoinClass)))
+	mux.Handle("GET /api/classes/overview", staffOnly(http.HandlerFunc(classH.ClassOverview)))
+	mux.Handle("GET /api/classes/{id}", staffOnly(http.HandlerFunc(classH.GetClass)))
+	mux.Handle("PUT /api/classes/{id}", staffOnly(http.HandlerFunc(classH.UpdateClass)))
+	mux.Handle("DELETE /api/classes/{id}", staffOnly(http.HandlerFunc(classH.DeleteClass)))
+	mux.Handle("DELETE /api/classes/{id}/leave", authOnly(http.HandlerFunc(classH.LeaveClass)))
+	mux.Handle("GET /api/classes/{id}/decks", authOnly(http.HandlerFunc(classH.ListClassDecks)))
+	mux.Handle("POST /api/classes/{id}/invite", staffOnly(http.HandlerFunc(classH.RegenerateInviteCode)))
+	mux.Handle("POST /api/classes/{id}/decks", staffOnly(http.HandlerFunc(classH.AssignDeck)))
+	mux.Handle("DELETE /api/classes/{id}/decks/{deckId}", staffOnly(http.HandlerFunc(classH.UnassignDeck)))
+	mux.Handle("GET /api/classes/{id}/stats", staffOnly(http.HandlerFunc(classH.ClassStats)))
+
+	// Student private decks & cards
+	mux.Handle("GET /api/my/decks", authOnly(http.HandlerFunc(contentH.ListMyDecks)))
+	mux.Handle("POST /api/my/decks", authOnly(http.HandlerFunc(contentH.CreateMyDeck)))
+	mux.Handle("DELETE /api/my/decks/{id}", authOnly(http.HandlerFunc(contentH.DeleteMyDeck)))
+	mux.Handle("GET /api/my/decks/{id}/cards", authOnly(http.HandlerFunc(contentH.ListMyDeckCards)))
+	mux.Handle("POST /api/my/decks/{id}/cards", authOnly(http.HandlerFunc(contentH.CreateMyCard)))
+	mux.Handle("PUT /api/my/cards/{id}", authOnly(http.HandlerFunc(contentH.UpdateMyCard)))
+	mux.Handle("DELETE /api/my/cards/{id}", authOnly(http.HandlerFunc(contentH.DeleteMyCard)))
+
 	// Admin only
 	mux.Handle("GET /api/admin/users", adminOnly(http.HandlerFunc(adminH.ListUsers)))
 	mux.Handle("POST /api/admin/users/{id}/roles", adminOnly(http.HandlerFunc(adminH.SetRoles)))
@@ -152,6 +183,10 @@ func main() {
 	mux.HandleFunc("GET /deck_manage.html", serveHTML("deck_manage.html"))
 	mux.HandleFunc("GET /admin_users.html", serveHTML("admin_users.html"))
 	mux.HandleFunc("GET /professor_stats.html", serveHTML("professor_stats.html"))
+	mux.HandleFunc("GET /classes.html", serveHTML("classes.html"))
+	mux.HandleFunc("GET /class_manage.html", serveHTML("class_manage.html"))
+	mux.HandleFunc("GET /my_decks.html", serveHTML("my_decks.html"))
+	mux.HandleFunc("GET /my_deck.html", serveHTML("my_deck.html"))
 
 	// Global middleware stack
 	isDev := cfg.Environment != "production"
