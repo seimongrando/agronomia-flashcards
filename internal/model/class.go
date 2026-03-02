@@ -7,7 +7,7 @@ type Class struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
 	Description *string   `json:"description,omitempty"`
-	InviteCode  string    `json:"invite_code"`
+	InviteCode  string    `json:"invite_code,omitempty"`
 	IsActive    bool      `json:"is_active"`
 	MemberCount int       `json:"member_count"` // enrolled student count
 	CreatedAt   time.Time `json:"created_at"`

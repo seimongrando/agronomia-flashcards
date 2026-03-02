@@ -49,6 +49,9 @@ type RateLimiterStore struct {
 		prefix string
 		store  *prefixStore
 	}
+	// trustedProxy controls whether X-Forwarded-For / X-Real-IP headers are
+	// trusted for client IP resolution. Set true only when behind a known proxy.
+	trustedProxy bool
 }
 
 // NewRateLimiterStore creates a store with a single global pool (legacy, kept for
@@ -60,7 +63,8 @@ func NewRateLimiterStore(rps float64, burst int) *RateLimiterStore {
 }
 
 // NewTieredRateLimiterStore creates a store with independent per-IP limit pools
-// for each URL-prefix tier.
+// for each URL-prefix tier. trustedProxy controls whether forwarded-IP headers
+// are honoured (set true when behind a single known reverse proxy like Render).
 func NewTieredRateLimiterStore(tiers []TieredConfig) *RateLimiterStore {
 	s := &RateLimiterStore{}
 	for _, t := range tiers {
@@ -101,12 +105,16 @@ func (s *RateLimiterStore) allow(ip, path string) bool {
 	return true
 }
 
+// SetTrustedProxy configures whether forwarded-IP headers are trusted.
+// Call this after NewTieredRateLimiterStore.
+func (s *RateLimiterStore) SetTrustedProxy(v bool) { s.trustedProxy = v }
+
 // RateLimit returns a middleware that enforces the tiered limits.
 // Paths that do not match any tier are always allowed.
 func RateLimit(store *RateLimiterStore) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := clientIP(r)
+			ip := clientIP(r, store.trustedProxy)
 			if !store.allow(ip, r.URL.Path) {
 				w.Header().Set("Content-Type", "application/problem+json")
 				w.WriteHeader(http.StatusTooManyRequests)
@@ -120,26 +128,27 @@ func RateLimit(store *RateLimiterStore) Middleware {
 
 // clientIP extracts the real client IP for rate-limiting purposes.
 //
-// When behind a single trusted reverse proxy (e.g. Render, nginx), the proxy
-// appends the client's real IP to X-Forwarded-For, so the rightmost entry is
-// the one added by the trusted infrastructure and cannot be spoofed by a
-// client pre-setting the header. Taking the leftmost value (the common naive
-// approach) would let attackers bypass rate limits by sending a forged header.
+// When trusted=true (behind a single known reverse proxy such as Render or nginx),
+// the proxy appends the real client IP to X-Forwarded-For. Taking the rightmost
+// non-empty value is safe because that entry is added by the trusted proxy and
+// cannot be spoofed by a client pre-setting the header.
 //
-// If there is no proxy in front of the app the header is absent and we fall
-// back to RemoteAddr, which is always the true peer IP.
-func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		// Rightmost non-empty part — added by the nearest trusted proxy.
-		for i := len(parts) - 1; i >= 0; i-- {
-			if ip := strings.TrimSpace(parts[i]); ip != "" {
-				return ip
+// When trusted=false (direct access or local dev), forwarded headers are ignored
+// entirely and we use RemoteAddr — the true TCP peer — to prevent IP spoofing.
+func clientIP(r *http.Request, trusted bool) string {
+	if trusted {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.Split(xff, ",")
+			// Rightmost non-empty part — added by the nearest trusted proxy.
+			for i := len(parts) - 1; i >= 0; i-- {
+				if ip := strings.TrimSpace(parts[i]); ip != "" {
+					return ip
+				}
 			}
 		}
-	}
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
+		if xri := r.Header.Get("X-Real-IP"); xri != "" {
+			return strings.TrimSpace(xri)
+		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

@@ -86,7 +86,8 @@ func (r *DeckRepo) ListPrivateByOwner(ctx context.Context, userID string) ([]mod
 		LEFT JOIN cards c ON c.deck_id = d.id
 		WHERE d.is_private = true AND d.created_by = $1
 		GROUP BY d.id, d.name
-		ORDER BY d.name ASC`
+		ORDER BY d.name ASC
+		LIMIT 500`
 	rows, err := r.db.QueryContext(ctx, q, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list private decks: %w", err)
@@ -107,7 +108,7 @@ func (r *DeckRepo) ListPrivateByOwner(ctx context.Context, userID string) ([]mod
 }
 
 func (r *DeckRepo) List(ctx context.Context) ([]model.Deck, error) {
-	q := `SELECT ` + deckCols + ` FROM decks ORDER BY subject NULLS LAST, name`
+	q := `SELECT ` + deckCols + ` FROM decks ORDER BY subject NULLS LAST, name LIMIT 1000`
 	rows, err := r.db.QueryContext(ctx, q)
 	if err != nil {
 		return nil, fmt.Errorf("deck list: %w", err)

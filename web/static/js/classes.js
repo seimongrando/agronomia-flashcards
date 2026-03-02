@@ -28,7 +28,7 @@
             spinnerEl.classList.add("hidden");
             if (!user) { window.location.href = "/?error=unauthorized"; return; }
             var roles = user.roles || [];
-            isStaff = roles.indexOf("professor") >= 0 || roles.indexOf("admin") >= 0;
+            isStaff = app.effectiveIsStaff(roles);
             app.renderTopbar(user);
             pageContent.classList.remove("hidden");
             if (isStaff) {

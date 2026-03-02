@@ -690,6 +690,12 @@ a { color: inherit; }
     margin: 2.5rem auto;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+.spinner--sm {
+    width: 18px;
+    height: 18px;
+    border-width: 2px;
+    margin: 0;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    STUDY PAGE — 3-D flip + Tinder swipe
@@ -1804,6 +1810,8 @@ a { color: inherit; }
     align-items: center;
     gap: 1rem;
     text-align: center;
+    max-width: 460px;
+    margin: 0 auto;
 }
 .profile-avatar {
     width: 80px;
@@ -1826,6 +1834,83 @@ a { color: inherit; }
 .profile-name   { font-size: 1.1rem; font-weight: 700; }
 .profile-email  { font-size: .88rem; color: var(--text-secondary); }
 .profile-roles  { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: center; }
+
+.profile-divider {
+    width: 100%;
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: .25rem 0;
+}
+
+/* ── Profile notification section ────────────────────────────────────────── */
+.profile-section {
+    width: 100%;
+    text-align: left;
+}
+.profile-section__header {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    font-size: .88rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: .65rem;
+}
+.notif-status {
+    display: flex;
+    flex-direction: column;
+}
+.notif-row {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+}
+.notif-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .22rem .65rem;
+    border-radius: 99px;
+    font-size: .78rem;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.notif-badge::before {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+.notif-badge--on {
+    background: var(--green-50, #f0fdf4);
+    color: var(--green-800, #166534);
+}
+.notif-badge--on::before   { background: var(--green-800, #166534); }
+.notif-badge--off {
+    background: var(--surface-alt, #f5f5f5);
+    color: var(--text-muted);
+}
+.notif-badge--off::before  { background: var(--text-muted); }
+.notif-badge--blocked {
+    background: #fff3cd;
+    color: #7c5600;
+}
+.notif-badge--blocked::before { background: #b45309; }
+.notif-hint {
+    font-size: .82rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+    margin: 0;
+}
+.btn-sm {
+    padding: .35rem .85rem;
+    font-size: .82rem;
+}
 
 /* ── Toast ───────────────────────────────────────────────────────────────── */
 .toast {
@@ -2407,6 +2492,91 @@ a { color: inherit; }
     border-color: #90CAF9;
 }
 
+/* ── Student-mode toggle ─────────────────────────────────────────────────────── */
+
+/* Amber highlight on the topbar button when mode is active */
+.user-trigger--student-mode {
+    border-color: #D97706 !important;
+    background: #FFFBEB !important;
+}
+
+/* Small dot badge on the avatar */
+.topbar-avatar-wrap {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+}
+.student-mode-dot {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #D97706;
+    border: 2px solid var(--surface);
+}
+
+/* Dropdown items for student mode toggle */
+.user-menu-item--student-enter,
+.user-menu-item--student-exit {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: .875rem;
+    padding: .55rem 1rem;
+    color: var(--text);
+    transition: background .12s;
+}
+.user-menu-item--student-enter:hover { background: #FFFBEB; color: #92400E; }
+.user-menu-item--student-exit  { color: #D97706; font-weight: 600; }
+.user-menu-item--student-exit:hover  { background: #FEF3C7; }
+
+/* Fixed bottom banner */
+.student-mode-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 500;
+    background: #D97706;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .85rem;
+    padding: .55rem 1.25rem;
+    font-size: .85rem;
+    font-weight: 500;
+    box-shadow: 0 -3px 14px rgba(0,0,0,.18);
+    flex-wrap: wrap;
+}
+.student-mode-banner svg { flex-shrink: 0; }
+.student-mode-banner strong { font-weight: 700; }
+.student-mode-banner__exit {
+    background: rgba(255,255,255,.22);
+    border: 1.5px solid rgba(255,255,255,.55);
+    color: #fff;
+    border-radius: 6px;
+    padding: .28rem .8rem;
+    font-size: .82rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s;
+    white-space: nowrap;
+}
+.student-mode-banner__exit:hover { background: rgba(255,255,255,.35); }
+
+/* Add bottom padding to main so the banner doesn't overlap content */
+body:has(.student-mode-banner) main { padding-bottom: 3.5rem; }
+
 /* ── Student section header (classes.html) ───────────────────────────────────── */
 .student-section-header {
     display: flex;
@@ -2687,3 +2857,64 @@ a { color: inherit; }
 }
 .field { display: flex; flex-direction: column; }
 .field-label { font-size: .82rem; font-weight: 500; color: var(--text-muted); }
+
+/* ── Offline banner ───────────────────────────────────────────────────────── */
+.offline-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1200;
+    background: #b45309;
+    color: #fff;
+    text-align: center;
+    font-size: .82rem;
+    font-weight: 500;
+    padding: .4rem 1rem;
+    letter-spacing: .01em;
+}
+
+/* ── Notification permission prompt ──────────────────────────────────────── */
+.notif-prompt {
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1100;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 4px 24px rgba(0,0,0,.14);
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    max-width: 440px;
+    width: calc(100% - 2rem);
+    animation: promptIn .3s ease;
+}
+@keyframes promptIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(16px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.notif-prompt__text {
+    flex: 1;
+    font-size: .88rem;
+    line-height: 1.4;
+    color: var(--text);
+}
+.notif-prompt__icon {
+    font-size: 1.6rem;
+    flex-shrink: 0;
+}
+.notif-prompt__actions {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    flex-shrink: 0;
+}
+.notif-prompt__actions .btn {
+    white-space: nowrap;
+    font-size: .82rem;
+    padding: .35rem .75rem;
+}

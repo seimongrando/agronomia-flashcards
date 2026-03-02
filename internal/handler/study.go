@@ -217,6 +217,28 @@ func (h *StudyHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	JSON(w, http.StatusOK, stats)
 }
 
+// OfflineBundle returns all cards for a deck plus the user's current review
+// state, enabling full offline study without further server contact.
+// GET /api/study/offline?deckId=...
+func (h *StudyHandler) OfflineBundle(w http.ResponseWriter, r *http.Request) {
+	info, ok := middleware.GetAuthInfo(r.Context())
+	if !ok {
+		Error(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+	deckID := r.URL.Query().Get("deckId")
+	if err := validate.UUID("deckId", deckID); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	bundle, err := h.svc.OfflineBundle(r.Context(), info.UserID, deckID)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "failed to load offline bundle")
+		return
+	}
+	JSON(w, http.StatusOK, bundle)
+}
+
 // ProfessorStats returns aggregate content and engagement metrics (no PII).
 func (h *StudyHandler) ProfessorStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.svc.ProfessorStats(r.Context())

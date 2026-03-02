@@ -145,6 +145,15 @@ func (s *StudyService) ListDecks(
 		decks = []model.DeckWithCounts{}
 	}
 
+	// Strip internal ownership field when returning the student home view.
+	// showAll=false means this is a student-facing request; CreatedBy is only
+	// needed by staff for UI ownership checks (teach/manage pages).
+	if !showAll {
+		for i := range decks {
+			decks[i].CreatedBy = nil
+		}
+	}
+
 	return pagination.Page[model.DeckWithCounts]{
 		Items:      decks,
 		NextCursor: nextCursor,
@@ -218,10 +227,9 @@ func (s *StudyService) Topics(ctx context.Context, deckID string) ([]string, err
 }
 
 func (s *StudyService) SubmitAnswer(ctx context.Context, userID, cardID string, result int) (model.AnswerResponse, error) {
-	if _, err := s.cards.FindByID(ctx, cardID); err != nil {
-		return model.AnswerResponse{}, fmt.Errorf("card not found: %w", err)
-	}
-
+	// Fetch the current review state (2 queries total: find + upsert).
+	// The card existence check was removed — the FK constraint on reviews.card_id
+	// already enforces it; an invalid cardID produces a FK violation on the upsert.
 	var streak, intervalDays int
 	var easeFactor float64
 	existing, err := s.reviews.FindByUserAndCard(ctx, userID, cardID)
@@ -265,4 +273,10 @@ func (s *StudyService) Stats(ctx context.Context, userID, deckID string) (model.
 
 func (s *StudyService) ProfessorStats(ctx context.Context) (model.ProfessorStats, error) {
 	return s.study.ProfessorStats(ctx)
+}
+
+// OfflineBundle returns all cards for a deck plus the user's review state,
+// packaged for IndexedDB caching so the student can study without network.
+func (s *StudyService) OfflineBundle(ctx context.Context, userID, deckID string) (model.OfflineBundle, error) {
+	return s.study.GetOfflineBundle(ctx, userID, deckID)
 }

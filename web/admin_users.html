@@ -15,24 +15,35 @@
 </head>
 <body>
 
-<nav class="topbar">
+<header class="topbar" role="banner">
     <div class="wrap">
-        <a href="/" class="topbar-brand">FlashCards</a>
+        <a href="/" class="topbar-brand" aria-label="Agronomia Flashcards – início">
+            <svg class="brand-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                <path d="M12 22V12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M12 13C13 10 16 8 19 8C19 11 16.5 13.5 12 13Z" fill="currentColor"/>
+                <path d="M12 17C11 14 8 12 5 12C5 15 7.5 17.5 12 17Z" fill="currentColor" opacity="0.6"/>
+                <path d="M9 22Q12 20.5 15 22" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+            </svg>
+            <span class="brand-name">Agronomia<span class="brand-sub"> – Flashcards</span></span>
+        </a>
+        <div class="topbar-center" aria-hidden="true"></div>
         <div id="topbar-right" class="topbar-right"></div>
     </div>
-</nav>
+</header>
 
 <main class="page-main">
     <div class="wrap" style="max-width:640px">
 
-        <div id="spinner"><div class="spinner"></div></div>
+        <div id="spinner"><div class="spinner" role="status" aria-label="Carregando…"></div></div>
         <div id="access-denied" class="empty-state hidden">
             <h2>Acesso negado</h2>
             <p>Esta área é restrita a administradores.</p>
         </div>
 
         <div id="admin-content" class="hidden">
-            <div class="section-title">Gerenciar Usuários</div>
+            <div class="page-header">
+                <h1 class="page-title">Gerenciar Usuários</h1>
+            </div>
 
             <div class="search-row">
                 <input id="search-input" type="search" class="input" placeholder="Buscar por e-mail…">

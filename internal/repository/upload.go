@@ -42,7 +42,8 @@ func (r *UploadRepo) ListByDeck(ctx context.Context, deckID string) ([]model.Upl
 		SELECT id, user_id, deck_id, filename,
 		       imported_count, updated_count, invalid_count, decks_created, created_at
 		FROM uploads WHERE deck_id = $1
-		ORDER BY created_at DESC`
+		ORDER BY created_at DESC
+		LIMIT 200`
 
 	rows, err := r.db.QueryContext(ctx, q, deckID)
 	if err != nil {

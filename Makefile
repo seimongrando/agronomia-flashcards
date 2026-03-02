@@ -195,6 +195,11 @@ run: ## Start the Go server — migrations run automatically on startup
 .PHONY: dev
 dev: docker-up db-wait run ## 🚀 Full local bootstrap: DB → wait → server (auto-migrates)
 
+# ── PWA / Push helpers ────────────────────────────────────────────────────────
+.PHONY: vapid-keys
+vapid-keys: ## Generate VAPID key pair for PWA push notifications
+	go run ./cmd/genvapid
+
 # ── Admin helpers ─────────────────────────────────────────────────────────────
 .PHONY: seed-admin
 seed-admin: ## Show instructions for enabling admin access via ADMIN_EMAILS

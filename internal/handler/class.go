@@ -47,6 +47,12 @@ func (h *ClassHandler) CreateClass(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if req.Description != nil {
+		if _, err := validate.StringField("description", *req.Description, 500); err != nil {
+			Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 	cl, err := h.svc.CreateClass(r.Context(), name, req.Description)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "failed to create class")
@@ -90,6 +96,16 @@ func (h *ClassHandler) UpdateClass(w http.ResponseWriter, r *http.Request) {
 	if err := validate.Required("name", name); err != nil {
 		Error(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if _, err := validate.StringField("name", name, 120); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.Description != nil {
+		if _, err := validate.StringField("description", *req.Description, 500); err != nil {
+			Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 	cl, err := h.svc.UpdateClass(r.Context(), id, name, req.Description, req.IsActive)
 	if err != nil {
@@ -137,10 +153,16 @@ func (h *ClassHandler) JoinClass(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if strings.TrimSpace(req.InviteCode) == "" {
+	code := strings.TrimSpace(strings.ToUpper(req.InviteCode))
+	if code == "" {
 		Error(w, http.StatusBadRequest, "invite_code is required")
 		return
 	}
+	if len(code) > 20 {
+		Error(w, http.StatusBadRequest, "invite_code inválido")
+		return
+	}
+	req.InviteCode = code
 	cl, err := h.svc.JoinClass(r.Context(), req.InviteCode)
 	if err != nil {
 		switch {

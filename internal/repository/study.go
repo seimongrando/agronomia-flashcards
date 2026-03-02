@@ -44,23 +44,28 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 
 	uid := nextArg(p.UserID)
 
-	// Class context subqueries — only emitted when ApplyVisibility is set
-	// so that the student sees which class each deck belongs to.
-	classIDExpr := "NULL::text"
-	classNameExpr := "NULL::text"
+	// Class context — resolved with a single LATERAL JOIN when ApplyVisibility is set.
+	// This replaces two correlated scalar subqueries (one for class_id, one for class_name)
+	// that previously fired separately for every deck row. The LATERAL executes once per row
+	// but fetches both fields in a single pass, halving the number of subquery executions.
+	lateralJoin := ""
+	classIDCol := "NULL::text"
+	classNameCol := "NULL::text"
+	groupByExtra := ""
 	if p.ApplyVisibility {
-		classIDExpr = fmt.Sprintf(`(
-			SELECT cl.id FROM class_decks cd
+		lateralJoin = fmt.Sprintf(`
+		LEFT JOIN LATERAL (
+			SELECT cl.id AS class_id, cl.name AS class_name
+			FROM class_decks cd
 			JOIN classes cl ON cl.id = cd.class_id
 			JOIN class_members cm ON cm.class_id = cd.class_id AND cm.user_id = %s
-			WHERE cd.deck_id = d.id ORDER BY cl.name ASC LIMIT 1
-		)`, uid)
-		classNameExpr = fmt.Sprintf(`(
-			SELECT cl.name FROM class_decks cd
-			JOIN classes cl ON cl.id = cd.class_id
-			JOIN class_members cm ON cm.class_id = cd.class_id AND cm.user_id = %s
-			WHERE cd.deck_id = d.id ORDER BY cl.name ASC LIMIT 1
-		)`, uid)
+			WHERE cd.deck_id = d.id
+			ORDER BY cl.name ASC
+			LIMIT 1
+		) clx ON true`, uid)
+		classIDCol = "clx.class_id"
+		classNameCol = "clx.class_name"
+		groupByExtra = ", clx.class_id, clx.class_name"
 	}
 
 	fmt.Fprintf(&sb, `
@@ -72,9 +77,10 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 		       MAX(rv.updated_at) AS last_studied,
 		       MIN(rv.next_due) FILTER (WHERE rv.next_due > now()) AS next_review
 		FROM decks d
+		%s
 		LEFT JOIN cards c    ON c.deck_id = d.id
 		LEFT JOIN reviews rv ON rv.card_id = c.id AND rv.user_id = %s
-		WHERE 1=1`, classIDExpr, classNameExpr, uid)
+		WHERE 1=1`, classIDCol, classNameCol, lateralJoin, uid)
 
 	if !p.ShowAll {
 		sb.WriteString(` AND d.is_active = true AND (d.expires_at IS NULL OR d.expires_at > now())`)
@@ -105,7 +111,7 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 			nameArg, nameArg, idArg)
 	}
 
-	sb.WriteString(` GROUP BY d.id`)
+	fmt.Fprintf(&sb, ` GROUP BY d.id%s`, groupByExtra)
 
 	if p.HideEmpty {
 		sb.WriteString(` HAVING COUNT(c.id) > 0`)
@@ -484,6 +490,69 @@ func (r *StudyRepo) ProfessorStats(ctx context.Context) (model.ProfessorStats, e
 		s.HardestCards = append(s.HardestCards, hc)
 	}
 	return s, hrows.Err()
+}
+
+// GetOfflineBundle returns all cards for a deck and the user's current review
+// state so the browser can study completely offline using local SM-2.
+func (r *StudyRepo) GetOfflineBundle(ctx context.Context, userID, deckID string) (model.OfflineBundle, error) {
+	// Fetch all cards for the deck (answers included — same data as study/next).
+	const cardQ = `
+		SELECT id, deck_id, topic, type, question, answer, source, created_at, updated_at
+		FROM cards WHERE deck_id = $1 ORDER BY created_at LIMIT 2000`
+	crows, err := r.db.QueryContext(ctx, cardQ, deckID)
+	if err != nil {
+		return model.OfflineBundle{}, fmt.Errorf("offline bundle cards: %w", err)
+	}
+	defer crows.Close()
+
+	var cards []model.Card
+	for crows.Next() {
+		var c model.Card
+		var topic, source sql.NullString
+		if err := crows.Scan(&c.ID, &c.DeckID, &topic, &c.Type, &c.Question, &c.Answer, &source,
+			&c.CreatedAt, &c.UpdatedAt); err != nil {
+			return model.OfflineBundle{}, fmt.Errorf("offline bundle card scan: %w", err)
+		}
+		c.Topic = toStringPtr(topic)
+		c.Source = toStringPtr(source)
+		cards = append(cards, c)
+	}
+	if err := crows.Err(); err != nil {
+		return model.OfflineBundle{}, err
+	}
+
+	// Fetch the user's reviews for cards in this deck.
+	const rvQ = `
+		SELECT rv.card_id, rv.streak, rv.interval_days, rv.ease_factor,
+		       rv.next_due, rv.last_result
+		FROM reviews rv
+		JOIN cards c ON c.id = rv.card_id
+		WHERE rv.user_id = $1 AND c.deck_id = $2`
+	rrows, err := r.db.QueryContext(ctx, rvQ, userID, deckID)
+	if err != nil {
+		return model.OfflineBundle{}, fmt.Errorf("offline bundle reviews: %w", err)
+	}
+	defer rrows.Close()
+
+	reviews := make(map[string]model.OfflineReview)
+	for rrows.Next() {
+		var cardID string
+		var rv model.OfflineReview
+		var nextDue sql.NullTime
+		if err := rrows.Scan(&cardID, &rv.Streak, &rv.IntervalDays, &rv.EaseFactor,
+			&nextDue, &rv.LastResult); err != nil {
+			return model.OfflineBundle{}, fmt.Errorf("offline bundle review scan: %w", err)
+		}
+		if nextDue.Valid {
+			rv.NextDue = nextDue.Time.UTC().Format("2006-01-02T15:04:05Z")
+		}
+		reviews[cardID] = rv
+	}
+	if err := rrows.Err(); err != nil {
+		return model.OfflineBundle{}, err
+	}
+
+	return model.OfflineBundle{Cards: cards, Reviews: reviews}, nil
 }
 
 // scanCard is a shared helper for scanning a single card row.

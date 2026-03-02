@@ -149,7 +149,7 @@ func (h *ContentHandler) PatchDeck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	deck, err := h.svc.PatchDeck(r.Context(), id, req)
-	if deckMutationError(w, err, "deck not found", err.Error()) {
+	if deckMutationError(w, err, "deck not found", "failed to update deck") {
 		return
 	}
 	JSON(w, http.StatusOK, deck)
@@ -566,6 +566,12 @@ func (h *ContentHandler) CreateMyDeck(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if req.Description != nil {
+		if _, err := validate.StringField("description", *req.Description, 500); err != nil {
+			Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 	deck, err := h.svc.CreateMyDeck(r.Context(), name, req.Description)
 	if err != nil {

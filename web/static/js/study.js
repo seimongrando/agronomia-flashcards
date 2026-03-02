@@ -54,6 +54,24 @@
     var startX = 0, startY = 0;
     var dragX  = 0, dragY  = 0;
 
+    /* ─── Offline indicator ─────────────────────────────────────────────────── */
+    var offlineBanner = null;
+    function setOfflineBanner(offline) {
+        if (offline && !offlineBanner) {
+            offlineBanner = document.createElement("div");
+            offlineBanner.className = "offline-banner";
+            offlineBanner.setAttribute("role", "status");
+            offlineBanner.textContent =
+                "Modo offline — suas respostas serão salvas e enviadas ao reconectar.";
+            document.body.insertBefore(offlineBanner, document.body.firstChild);
+        } else if (!offline && offlineBanner) {
+            offlineBanner.remove();
+            offlineBanner = null;
+        }
+    }
+    window.addEventListener("online",  function () { setOfflineBanner(false); });
+    window.addEventListener("offline", function () { setOfflineBanner(true);  });
+
     /* ════════════════════════════════════════════════════════════════════════
        INIT
     ════════════════════════════════════════════════════════════════════════ */
@@ -69,6 +87,11 @@
             loadTopics();
             loadStats();
             loadNext();
+
+            // Pre-sync deck cards to IndexedDB for offline use (fire-and-forget).
+            if (window.offlineStudy && navigator.onLine) {
+                offlineStudy.syncDeck(deckId).catch(function () { /* non-critical */ });
+            }
         });
 
         setupFlip();
@@ -226,30 +249,26 @@
         var flyDone = new Promise(function (r) { setTimeout(r, 390); });
         var apiDone = api.post("/api/study/answer", { card_id: currentCard.id, result: result });
 
-        Promise.all([flyDone, apiDone]).then(function (results) {
-            var res = results[1];
-            if (!res.ok) throw new Error("answer failed");
-
+        function onAnswerSuccess() {
             sessionCount++;
             if      (result === 2) sessionCorrect++;
             else if (result === 1) sessionHard++;
             else                   sessionWrong++;
 
-            // Update "due" remaining counter
             if (mode === "due" && remaining !== null) {
                 remaining = Math.max(0, remaining - 1);
             }
-
-            // Check session cap for non-due modes
             if (mode !== "due" && totalCards !== null && sessionCount >= totalCards) {
                 updateProgress();
-                showDone("Sessão concluída!", "Você revisou " + sessionCount + " carta" + (sessionCount !== 1 ? "s" : "") + " desta vez.", false);
+                showDone("Sessão concluída!", "Você revisou " + sessionCount +
+                    " carta" + (sessionCount !== 1 ? "s" : "") + " desta vez.", false);
                 return;
             }
-
             updateProgress();
             loadNext();
-        }).catch(function () {
+        }
+
+        function onAnswerError() {
             submitting = false;
             cardDragEl.style.transition = "transform .35s cubic-bezier(.34,1.56,.64,1)";
             cardDragEl.style.transform  = "";
@@ -257,6 +276,28 @@
                 cardDragEl.style.transition = "";
                 setAnswerButtons(true);
             }, 360);
+        }
+
+        Promise.all([flyDone, apiDone]).then(function (results) {
+            var res = results[1];
+            if (!res.ok) throw new Error("answer failed");
+            onAnswerSuccess();
+        }).catch(function () {
+            // Network error — save answer to offline queue and continue.
+            if (!window.offlineStudy) { onAnswerError(); return; }
+            var savedCardId = currentCard.id;
+            offlineStudy.recordAnswer(savedCardId, result)
+                .then(function () {
+                    // Also register a Background Sync so the SW sends it when online.
+                    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+                        navigator.serviceWorker.ready.then(function (reg) {
+                            if (reg.sync) reg.sync.register("agro-answer-queue").catch(function(){});
+                        });
+                    }
+                    setOfflineBanner(true);
+                    onAnswerSuccess();
+                })
+                .catch(function () { onAnswerError(); });
         });
     }
 
@@ -472,7 +513,33 @@
                 renderCard();
             })
             .catch(function () {
-                showDone("Erro", "Não foi possível carregar a carta. Tente novamente.", true);
+                // Network error — try offline fallback via IndexedDB.
+                if (!window.offlineStudy) {
+                    showDone("Erro", "Não foi possível carregar a carta. Verifique a conexão.", true);
+                    return;
+                }
+                offlineStudy.isDeckCached(deckId).then(function (cached) {
+                    if (!cached) {
+                        showDone(
+                            "Sem conexão",
+                            "Você está offline e este deck ainda não foi sincronizado. " +
+                            "Conecte-se para estudar pela primeira vez.",
+                            true
+                        );
+                        return;
+                    }
+                    setOfflineBanner(true);
+                    return offlineStudy.nextCard(deckId, mode, activeTopic).then(function (card) {
+                        if (!card) {
+                            showDone("Parabéns!", "Nenhuma carta pendente offline.", false);
+                            return;
+                        }
+                        currentCard = card;
+                        renderCard();
+                    });
+                }).catch(function () {
+                    showDone("Erro", "Não foi possível carregar a carta.", true);
+                });
             });
     }
 

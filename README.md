@@ -1,6 +1,32 @@
 # Agronomia – Flashcards
 
-Backend em Go + Postgres com frontend estático embutido. Repetição espaçada para estudantes de Agronomia.
+Plataforma de estudos por repetição espaçada voltada para cursos de Agronomia. Backend em **Go** + **PostgreSQL**, frontend estático embutido no binário (sem CDN, zero dependências de JS em runtime).
+
+---
+
+## Funcionalidades
+
+### Para Alunos
+- **Estudo com repetição espaçada (SM-2)** — algoritmo clássico com intervalos crescentes para memorização eficiente.
+- **Decks pessoais** — criação e gerenciamento de cards próprios, com tipagem visual por cor.
+- **Turmas** — entrar em turmas via código de convite e estudar os decks atribuídos pelo professor.
+- **Dashboard de progresso** — histórico de sessões, taxa de acerto, cards difíceis e streaks de estudo.
+- **Modo estudante** (para admin/professor) — simular a experiência do aluno sem alterar papéis no banco.
+- **PWA** — instalável em dispositivos móveis via Service Worker.
+
+### Para Professores
+- **Gestão de conteúdo** — criar, editar, ativar/desativar e excluir decks e cards.
+- **Tipos de card** — Conceito, Processo, Aplicação e Comparação (com indicação visual por cor).
+- **Importação CSV** — upload em lote com preview, detecção de erros e UPSERT seguro.
+- **Exportação CSV** — download de qualquer deck com todos os campos.
+- **Turmas** — criar turmas, gerar código de convite, atribuir/remover decks, monitorar alunos.
+- **Relatórios** — visão geral e por turma: taxa de acerto, cards difíceis, alunos ativos, desempenho por deck.
+- **Encerramento automático** — definir data de expiração por deck.
+
+### Para Administradores
+- **Gestão de usuários** — promover/rebaixar papéis (student, professor, admin).
+- **Acesso total** — visualizar e gerenciar qualquer deck, turma ou usuário.
+- **Exclusão em lote** — deletar múltiplos decks de uma vez.
 
 ---
 
@@ -56,20 +82,22 @@ Abra **http://localhost:8080** e clique em *Entrar com Google*.
 
 ---
 
-## Acesso Admin
+## Papéis e Acesso
 
-Por padrão, qualquer usuário que fizer login recebe o papel `student`. Para ter acesso de professor/admin:
+| Papel | Permissões |
+|---|---|
+| `student` | Estudar decks públicos e de turma, criar decks pessoais, ver próprio progresso |
+| `professor` | + Gerenciar decks/cards próprios, criar e gerenciar turmas próprias, ver relatórios |
+| `admin` | + Gerenciar todos os decks/turmas, gerenciar usuários, acesso a qualquer conteúdo |
 
-**Via `ADMIN_EMAILS` (automático no primeiro login):**
+**Promoção via `ADMIN_EMAILS`** (automático no primeiro login):
 
 ```env
 # .env.local
 ADMIN_EMAILS=seuemail@gmail.com
 ```
 
-Reinicie o servidor (`make run`) e faça login. Seu email é automaticamente promovido a `admin`.
-
-**Via psql (manual após login):**
+**Promoção manual via psql:**
 
 ```bash
 make psql
@@ -77,13 +105,28 @@ make psql
 
 ```sql
 INSERT INTO user_roles (user_id, role)
-  SELECT id, 'admin' FROM users WHERE email = 'seuemail@gmail.com';
--- ou role = 'professor' para acesso às telas de conteúdo sem admin total
+  SELECT id, 'professor' FROM users WHERE email = 'email@dominio.com';
 ```
 
-**Páginas restritas:**
-- `/teach.html` — gerenciar decks e cards (professor ou admin)
-- `/admin_users.html` — gerenciar usuários e roles (admin apenas)
+---
+
+## Páginas
+
+| URL | Acesso | Descrição |
+|---|---|---|
+| `/` | Todos | Home — decks por matéria/turma |
+| `/study.html` | Todos | Estudo com repetição espaçada |
+| `/progress.html` | Aluno | Dashboard de progresso pessoal |
+| `/classes.html` | Aluno | Turmas e decks pessoais |
+| `/my_decks.html` | Aluno | Gerenciar decks pessoais |
+| `/my_deck.html` | Aluno | Cards de um deck pessoal |
+| `/teach.html` | Professor/Admin | Gerenciar decks e cards |
+| `/deck_manage.html` | Professor/Admin | Cards de um deck gerenciado |
+| `/classes.html` | Professor/Admin | Gerenciar turmas |
+| `/class_manage.html` | Professor/Admin | Detalhe de turma + relatórios |
+| `/professor_stats.html` | Professor/Admin | Painel de relatórios geral |
+| `/me.html` | Todos | Perfil do usuário |
+| `/admin_users.html` | Admin | Gerenciamento de usuários |
 
 ---
 
@@ -137,29 +180,37 @@ make psql
 
 ```
 webapp/
-├── cmd/server/           # Entrypoint (main.go)
+├── cmd/server/           # Entrypoint (main.go) — roteamento e composição DI
 ├── internal/
-│   ├── config/           # Configuração via env
-│   ├── csvparse/         # Parser CSV robusto (UTF-8, BOM, validação)
-│   ├── handler/          # HTTP handlers
-│   ├── middleware/        # Auth, CORS, CSRF, rate limit, security headers
-│   ├── model/            # Modelos de domínio
-│   ├── pagination/       # Cursor-based pagination utilities
-│   ├── repository/       # Acesso ao banco (SQL)
-│   ├── service/          # Lógica de negócio
-│   └── validate/         # Validação de input
+│   ├── config/           # Configuração via variáveis de ambiente
+│   ├── csvparse/         # Parser CSV robusto (UTF-8/BOM, validação, UPSERT)
+│   ├── handler/          # HTTP handlers (content, study, class, admin)
+│   ├── middleware/        # Auth JWT, CSRF, CORS, rate limit, security headers
+│   ├── model/            # DTOs e structs de domínio
+│   ├── pagination/       # Cursor-based pagination helpers
+│   ├── repository/       # SQL (parametrizado, sem ORM)
+│   ├── service/          # Lógica de negócio (SM-2, RBAC, turmas, progresso)
+│   └── validate/         # Validação de input (UUID, strings, campos obrigatórios)
 ├── migrations/           # SQL versionado (golang-migrate)
-│   ├── 001_init.up.sql
+│   ├── 001_init.up.sql              # Schema base
 │   ├── 002_upsert_constraints.up.sql
-│   └── 003_pagination_indexes.up.sql
-├── web/                  # Frontend estático embutido (embed.go)
-│   ├── static/css/
-│   ├── static/js/
+│   ├── 003_pagination_indexes.up.sql
+│   ├── 004_progress.up.sql
+│   ├── 005_subject.up.sql
+│   ├── 006_private_decks.up.sql     # Decks pessoais de alunos
+│   ├── 007_study_streak.up.sql      # Streak de estudos
+│   ├── 008_pwa_icons.up.sql
+│   ├── 009_home_perf.up.sql         # Índices de performance
+│   ├── 010_classes.up.sql           # Turmas e membros
+│   └── 011_perf_indexes.up.sql      # Índices adicionais (uploads, reviews)
+├── web/                  # Frontend estático embutido no binário (//go:embed)
+│   ├── static/css/style.css
+│   ├── static/js/        # Um .js por página (sem bundler)
 │   └── *.html
 ├── .env.example          # Referência de todas as variáveis
 ├── .env.local.example    # Template pronto para desenvolvimento local
-├── docker-compose.yml    # Postgres + Adminer (profile tools)
-├── Dockerfile            # Build de produção (multi-stage)
+├── docker-compose.yml    # Postgres + Adminer
+├── Dockerfile            # Build multi-stage de produção
 ├── Makefile              # Automação de tarefas
 └── render.yaml           # Deploy automático no Render.com
 ```
@@ -168,23 +219,36 @@ webapp/
 
 ## Arquitetura
 
-**Camadas:** `handler → service → repository` (tudo em `internal/`).
+**Camadas:** `handler → service → repository`, todas em `internal/`. Handlers não acessam o banco diretamente — passam pelo service que aplica regras de negócio, RBAC e ownership.
+
+**Autenticação:** JWT em cookie `HttpOnly`, obtido via OAuth2 Google. O token carrega `user_id`, `email` e papéis (`roles`). O middleware `RequireAuth` valida a assinatura antes de qualquer handler protegido.
+
+**RBAC por rota:**
+
+| Middleware | Papéis permitidos |
+|---|---|
+| `authOnly` | Qualquer usuário autenticado |
+| `contentMgmt` | `professor`, `admin` |
+| `staffOnly` | `professor`, `admin` |
+| `adminOnly` | `admin` |
 
 **Stack de middleware** (aplicada na ordem):
 
-1. `RequestID` — geração e propagação de request-id
+1. `RequestID` — geração de ID único por requisição
 2. `Logger` — log estruturado JSON (slog)
 3. `SecurityHeaders` — CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
-4. `CORS` — restrito por `ALLOWED_ORIGINS` (negado por padrão)
-5. `CSRF` — valida Origin/Referer em métodos mutantes (POST/PUT/DELETE)
-6. `MaxBody` — limita o tamanho do body da requisição
-7. `RateLimit` — token bucket por IP (`/auth/*` e `/api/*` com limites diferentes)
+4. `CORS` — restrito por `ALLOWED_ORIGINS`
+5. `CSRF` — valida Origin/Referer em métodos mutantes
+6. `MaxBody` — limita tamanho do body
+7. `RateLimit` — token bucket por IP (auth com limite mais restrito)
+
+**Algoritmo SM-2:** `service/study.go` — implementação do algoritmo de repetição espaçada. Ratings: 0=errou, 1=difícil, 2=acertou. Intervalo inicial 1 dia, crescimento exponencial controlado pelo ease factor.
+
+**Paginação:** cursor-based em todos os endpoints de lista, usando `(name, id)` ou `(updated_at, id)` como chave composta para estabilidade de ordenação.
 
 **Endpoints de health:**
 - `GET /healthz` — liveness (sempre 200)
 - `GET /readyz` — readiness (pinga o banco)
-
-**Paginação:** cursor-based em todos os endpoints de lista (`/api/decks`, `/api/content/cards`, `/api/admin/users`).
 
 ---
 
@@ -197,9 +261,13 @@ Para desenvolvimento local use [`.env.local.example`](.env.local.example) como b
 
 ## Deploy (Render)
 
-Conecte o repositório ao [Render](https://render.com). O arquivo `render.yaml` provisiona automaticamente um web service + Postgres gratuito.
+Conecte o repositório ao [Render](https://render.com). O arquivo `render.yaml` provisiona automaticamente um web service (`agronomia-flashcards`) + Postgres.
 
-Certifique-se de configurar as variáveis `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `JWT_SECRET` e `ADMIN_EMAILS` nos *Environment Variables* do serviço no dashboard do Render.
+Configure as variáveis no dashboard do Render:
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- `JWT_SECRET` (string aleatória longa)
+- `ADMIN_EMAILS`
+- `BASE_URL` (URL pública do serviço, ex: `https://agronomia-flashcards.onrender.com`)
 
 ---
 
@@ -208,8 +276,10 @@ Certifique-se de configurar as variáveis `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SEC
 - Cookies `HttpOnly`, `SameSite=Lax`, `Secure` (em produção).
 - JWT em cookie — nunca exposto em `localStorage`.
 - CSRF protegido via validação de `Origin`/`Referer`.
-- Secrets nunca logados.
-- Body limitado por `MAX_BODY_SIZE`.
-- Rate limiting por IP em rotas sensíveis.
+- Ownership verificado no service layer — professores só acessam seus próprios decks e turmas.
+- Todas as queries SQL parametrizadas — sem concatenação de strings (zero SQL injection).
+- Body limitado por `MAX_BODY_SIZE`. Rate limiting por IP em todas as rotas.
+- Campos sensíveis (`google_sub`) marcados `json:"-"` — nunca serializados.
+- `CreatedBy` (UUID interno) ocultado em respostas ao aluno.
 
 Veja [`SECURITY.md`](SECURITY.md) e [`PRIVACY.md`](PRIVACY.md) para detalhes.

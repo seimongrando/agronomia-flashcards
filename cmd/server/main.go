@@ -17,6 +17,7 @@ import (
 	"webapp/internal/handler"
 	"webapp/internal/middleware"
 	"webapp/internal/migrate"
+	"webapp/internal/push"
 	"webapp/internal/repository"
 	"webapp/internal/service"
 	"webapp/migrations"
@@ -54,6 +55,7 @@ func main() {
 	uploadRepo := repository.NewUploadRepo(db)
 	classRepo := repository.NewClassRepo(db)
 	classStatsRepo := repository.NewClassStatsRepo(db)
+	pushRepo := repository.NewPushRepo(db)
 
 	// Services
 	healthSvc := service.NewHealthService(db)
@@ -62,6 +64,13 @@ func main() {
 	contentSvc := service.NewContentService(db, deckRepo, cardRepo, uploadRepo)
 	adminSvc := service.NewAdminService(userRepo, logger)
 	classSvc := service.NewClassService(classRepo, classStatsRepo)
+
+	pushClient, err := push.NewClient(cfg.VAPIDPrivateKey, cfg.VAPIDPublicKey, cfg.VAPIDSubject)
+	if err != nil {
+		logger.Error("failed to load VAPID keys", "error", err)
+		os.Exit(1)
+	}
+	pushSvc := service.NewPushService(pushRepo, pushClient)
 
 	// OAuth
 	oauthCfg := &oauth2.Config{
@@ -80,6 +89,7 @@ func main() {
 	contentH := handler.NewContentHandler(contentSvc)
 	adminH := handler.NewAdminHandler(adminSvc)
 	classH := handler.NewClassHandler(classSvc)
+	pushH := handler.NewPushHandler(pushSvc)
 
 	// --- Access-level helpers (RBAC) ---
 	jwtSecret := []byte(cfg.JWTSecret)
@@ -107,6 +117,12 @@ func main() {
 	mux.Handle("POST /api/study/answer", authOnly(http.HandlerFunc(studyH.SubmitAnswer)))
 	mux.Handle("GET /api/stats", authOnly(http.HandlerFunc(studyH.Stats)))
 	mux.Handle("GET /api/progress", authOnly(http.HandlerFunc(studyH.Progress)))
+	mux.Handle("GET /api/study/offline", authOnly(http.HandlerFunc(studyH.OfflineBundle)))
+
+	// Push notifications (any authenticated user)
+	mux.HandleFunc("GET /api/push/key", pushH.PublicKey)
+	mux.Handle("POST /api/push/subscribe", authOnly(http.HandlerFunc(pushH.Subscribe)))
+	mux.Handle("DELETE /api/push/subscribe", authOnly(http.HandlerFunc(pushH.Unsubscribe)))
 
 	// Content management: professor or admin
 	mux.Handle("GET /api/content/decks", contentMgmt(http.HandlerFunc(studyH.ListDecksForManagement)))
@@ -194,6 +210,7 @@ func main() {
 		{Prefix: "/auth/", RPS: cfg.AuthRateLimitRPS, Burst: cfg.AuthRateLimitBurst},
 		{Prefix: "/api/", RPS: cfg.APIRateLimitRPS, Burst: cfg.APIRateLimitBurst},
 	})
+	rateLimiter.SetTrustedProxy(cfg.TrustedProxy)
 	stack := middleware.Chain(
 		middleware.RequestID,
 		middleware.Logger(logger),
@@ -215,6 +232,10 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	// Daily push notification scheduler.
+	// Fires once per day at cfg.PushNotifyHour UTC, reminding users with due cards.
+	go runDailyScheduler(ctx, logger, pushSvc, cfg.PushNotifyHour)
+
 	go func() {
 		logger.Info("server starting", "port", cfg.Port, "env", cfg.Environment)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -231,6 +252,27 @@ func main() {
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("forced shutdown", "error", err)
+	}
+}
+
+// runDailyScheduler fires SendDueReminders once per day at the configured UTC hour.
+// It wakes up every hour and checks if the current hour matches; this ensures the
+// job fires even if the server restarts within the target hour window.
+func runDailyScheduler(ctx context.Context, log *slog.Logger, svc *service.PushService, targetHour int) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	lastFired := -1 // track last day of year we fired (prevents double-fire within same hour)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case t := <-ticker.C:
+			if t.UTC().Hour() == targetHour && t.UTC().YearDay() != lastFired {
+				lastFired = t.UTC().YearDay()
+				log.Info("push scheduler: sending daily reminders")
+				svc.SendDueReminders(ctx)
+			}
+		}
 	}
 }
 

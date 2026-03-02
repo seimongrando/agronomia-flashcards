@@ -66,7 +66,7 @@
             var accColor = c.accuracy_pct >= 70 ? '#1B5E20' : c.accuracy_pct >= 40 ? '#E65100' : '#B71C1C';
             var lastAct = c.last_activity ? new Date(c.last_activity).toLocaleDateString('pt-BR') : '—';
             return '<tr>' +
-                '<td><a href="/class_manage.html?classId=' + c.class_id + '" style="font-weight:600;color:var(--primary)">' + esc(c.class_name) + '</a></td>' +
+                '<td><a href="/class_manage.html?classId=' + c.class_id + '" style="font-weight:600;color:var(--primary)">' + app.esc(c.class_name) + '</a></td>' +
                 '<td class="num">' + c.total_members + '</td>' +
                 '<td class="num">' + c.active_last_7d + ' <span class="text-muted" style="font-size:.78rem">(' + engPct + '%)</span></td>' +
                 '<td class="num">' + c.reviews_last_7d + '</td>' +
@@ -115,8 +115,8 @@
 
             return '<tr>' +
                 '<td><a href="/deck_manage.html?deckId=' + d.id + '&deckName=' + encodeURIComponent(d.name) +
-                    '" class="link-green" style="font-weight:500">' + esc(d.name) + '</a></td>' +
-                '<td style="color:var(--gray-500);font-size:.85rem">' + (d.subject ? esc(d.subject) : '—') + '</td>' +
+                    '" class="link-green" style="font-weight:500">' + app.esc(d.name) + '</a></td>' +
+                '<td style="color:var(--gray-500);font-size:.85rem">' + (d.subject ? app.esc(d.subject) : '—') + '</td>' +
                 '<td>' + statusBadge + '</td>' +
                 '<td class="num">' + d.total_cards + '</td>' +
                 '<td class="num">' + d.students_studying + '</td>' +
@@ -145,10 +145,10 @@
             return '<div class="hard-card-row">' +
                 '<div class="hard-card-rank">' + (i + 1) + '</div>' +
                 '<div class="hard-card-body">' +
-                    '<div class="hard-card-q">' + esc(trunc(c.question, 120)) + '</div>' +
+                    '<div class="hard-card-q">' + app.esc(trunc(c.question, 120)) + '</div>' +
                     '<div class="hard-card-meta">' +
                         '<span class="badge ' + typeCls + '" style="font-size:.72rem;text-transform:uppercase">' + type + '</span>' +
-                        '<span class="hard-card-deck">' + esc(c.deck_name) + '</span>' +
+                        '<span class="hard-card-deck">' + app.esc(c.deck_name) + '</span>' +
                         '<span style="color:var(--gray-400);font-size:.8rem">' + c.total_reviews + ' revisões</span>' +
                     '</div>' +
                 '</div>' +
@@ -165,14 +165,6 @@
         if (pct >= 70) return 'var(--green-main)';
         if (pct >= 40) return '#F57C00';
         return '#c62828';
-    }
-
-    function esc(s) {
-        return String(s || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
     }
 
     function trunc(s, n) {

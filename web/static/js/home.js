@@ -42,7 +42,7 @@
                 return;
             }
             var roles = user.roles || [];
-            isProfessor = roles.indexOf("professor") >= 0 || roles.indexOf("admin") >= 0;
+            isProfessor = app.effectiveIsStaff(roles);
             app.renderTopbar(user);
             contentEl.classList.remove("hidden");
             loadDecks();
@@ -171,7 +171,7 @@
             var coll1     = sessionStorage.getItem(key1) === "1";
             var sgCls1    = coll1 ? " subject-group--collapsed" : "";
             var expanded1 = coll1 ? "false" : "true";
-            html += '<div class="subject-group' + sgCls1 + '" data-sg-key="' + key1 + '">' +
+            html += '<div class="subject-group' + sgCls1 + '" data-sg-key="' + app.esc(key1) + '">' +
                 '<button class="subject-group__header subject-group__header--class" aria-expanded="' + expanded1 + '">' +
                     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
                     '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
@@ -192,9 +192,9 @@
             var collapsed = sessionStorage.getItem(key) === "1";
             var sgCls     = collapsed ? " subject-group--collapsed" : "";
             var expanded  = collapsed ? "false" : "true";
-            var gridId    = "sg-grid-" + subj.replace(/\s+/g, "_");
+            var gridId    = "sg-grid-" + app.esc(subj.replace(/\s+/g, "_"));
             html += '<div class="subject-group' + sgCls + '" data-sg-key="' + app.esc(key) + '">' +
-                '<button class="subject-group__header" aria-expanded="' + expanded + '" aria-controls="' + gridId + '">' +
+                '<button class="subject-group__header" aria-expanded="' + expanded + '" aria-controls="' + app.esc(gridId) + '">' +
                     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
                         '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
                         '<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
@@ -202,7 +202,7 @@
                     '<span>' + app.esc(subj) + '</span>' +
                     chevronSvg +
                 '</button>' +
-                '<div class="deck-grid" id="' + gridId + '">' +
+                '<div class="deck-grid" id="' + app.esc(gridId) + '">' +
                     groups[subj].map(renderDeckCard).join("") +
                 '</div>' +
             '</div>';

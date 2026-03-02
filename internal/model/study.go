@@ -32,6 +32,22 @@ type AnswerResponse struct {
 	IntervalDays int       `json:"interval_days"`
 }
 
+// OfflineBundle is returned by GET /api/study/offline and contains everything
+// a browser needs to study a deck without network access.
+type OfflineBundle struct {
+	Cards   []Card                   `json:"cards"`
+	Reviews map[string]OfflineReview `json:"reviews"` // cardID → review state
+}
+
+// OfflineReview is the minimal review state needed to run SM-2 offline.
+type OfflineReview struct {
+	Streak       int     `json:"streak"`
+	IntervalDays int     `json:"interval_days"`
+	EaseFactor   float64 `json:"ease_factor"`
+	NextDue      string  `json:"next_due"` // RFC3339
+	LastResult   int16   `json:"last_result"`
+}
+
 type StudyStats struct {
 	DueNow        int `json:"due_now"`
 	ReviewedToday int `json:"reviewed_today"`

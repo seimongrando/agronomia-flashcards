@@ -114,7 +114,8 @@ func (r *ClassRepo) ListByCreator(ctx context.Context, userID string) ([]model.C
 		LEFT JOIN class_members cm ON cm.class_id = c.id
 		WHERE c.created_by = $1
 		GROUP BY c.id, c.name, c.description, c.invite_code, c.is_active
-		ORDER BY c.name ASC`
+		ORDER BY c.name ASC
+		LIMIT 500`
 	rows, err := r.db.QueryContext(ctx, q, userID)
 	if err != nil {
 		return nil, err
@@ -150,7 +151,8 @@ func (r *ClassRepo) ListByMember(ctx context.Context, userID string) ([]model.Cl
 		LEFT JOIN class_members cm2 ON cm2.class_id = c.id
 		WHERE c.is_active = true
 		GROUP BY c.id, c.name, c.description, c.is_active
-		ORDER BY c.name ASC`
+		ORDER BY c.name ASC
+		LIMIT 200`
 	rows, err := r.db.QueryContext(ctx, q, userID)
 	if err != nil {
 		return nil, err
@@ -220,7 +222,8 @@ func (r *ClassRepo) ListClassDecks(ctx context.Context, classID string) ([]model
 		LEFT JOIN cards c ON c.deck_id = d.id
 		WHERE cd.class_id = $1
 		GROUP BY d.id, d.name, d.subject, cd.added_at
-		ORDER BY d.name ASC`
+		ORDER BY d.name ASC
+		LIMIT 500`
 	rows, err := r.db.QueryContext(ctx, q, classID)
 	if err != nil {
 		return nil, err

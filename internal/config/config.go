@@ -43,6 +43,26 @@ type Config struct {
 	// Defaults to true in production, false otherwise.
 	// Override with COOKIE_SECURE=false for local HTTP development.
 	CookieSecure bool
+
+	// VAPID keys for Web Push notifications (RFC 8292).
+	// Generate once with the built-in helper (see internal/push/vapid.go).
+	// When empty, push notifications are silently disabled.
+	VAPIDPublicKey  string
+	VAPIDPrivateKey string
+	// VAPIDSubject is the "mailto:" or "https:" contact URI included in VAPID JWTs.
+	VAPIDSubject string
+	// PushNotifyHour is the UTC hour (0-23) at which the daily reminder is sent.
+	// Default: 8 (08:00 UTC).
+	PushNotifyHour int
+
+	// TrustedProxy controls whether X-Forwarded-For / X-Real-IP headers are
+	// trusted when determining the client IP for rate limiting.
+	// Set to true when the app runs behind a single trusted reverse proxy
+	// (e.g. Render, nginx). Set to false for direct-access deployments or
+	// local development to prevent IP spoofing via forged headers.
+	// Defaults to true in production, false otherwise.
+	// Override with TRUSTED_PROXY=true|false.
+	TrustedProxy bool
 }
 
 func Load() *Config {
@@ -71,6 +91,11 @@ func Load() *Config {
 		JWTExpiry:          parseDuration(getEnv("JWT_EXPIRY", "24h")),
 		AdminEmails:        parseEmailSet(getEnv("ADMIN_EMAILS", "")),
 		CookieSecure:       parseCookieSecure(getEnv("COOKIE_SECURE", ""), getEnv("ENVIRONMENT", "development")),
+		TrustedProxy:       parseTrustedProxy(getEnv("TRUSTED_PROXY", ""), getEnv("ENVIRONMENT", "development")),
+		VAPIDPublicKey:     getEnv("VAPID_PUBLIC_KEY", ""),
+		VAPIDPrivateKey:    getEnv("VAPID_PRIVATE_KEY", ""),
+		VAPIDSubject:       getEnv("VAPID_SUBJECT", "mailto:admin@agronomia.app"),
+		PushNotifyHour:     parseInt(getEnv("PUSH_NOTIFY_HOUR", "8")),
 	}
 	validateConfig(cfg)
 	return cfg
@@ -160,6 +185,17 @@ func parseDuration(raw string) time.Duration {
 		return 5 * time.Second
 	}
 	return d
+}
+
+func parseTrustedProxy(raw, environment string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "true", "1", "yes":
+		return true
+	case "false", "0", "no":
+		return false
+	default:
+		return environment == "production"
+	}
 }
 
 func parseCookieSecure(raw, environment string) bool {

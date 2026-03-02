@@ -188,8 +188,10 @@ func (r *CardRepo) ListByDeckPaged(ctx context.Context, p CardListParams) ([]mod
 }
 
 func (r *CardRepo) ListByDeck(ctx context.Context, deckID string) ([]model.Card, error) {
+	// Safety LIMIT: 10 000 cards per deck is well beyond any real use-case and
+	// prevents accidental full-table scans if a deck grows unexpectedly.
 	const q = `SELECT id, deck_id, topic, type, question, answer, source, created_at, updated_at
-	           FROM cards WHERE deck_id = $1 ORDER BY created_at`
+	           FROM cards WHERE deck_id = $1 ORDER BY created_at LIMIT 10000`
 
 	rows, err := r.db.QueryContext(ctx, q, deckID)
 	if err != nil {

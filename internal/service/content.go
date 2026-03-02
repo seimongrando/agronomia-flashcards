@@ -77,8 +77,9 @@ func (s *ContentService) UpdateDeck(ctx context.Context, id, name string, desc, 
 	return s.decks.Update(ctx, id, name, desc, subject)
 }
 
+// GetDeck returns a deck, enforcing ownership for non-admins.
 func (s *ContentService) GetDeck(ctx context.Context, id string) (model.Deck, error) {
-	return s.decks.FindByID(ctx, id)
+	return s.checkDeckOwnership(ctx, id)
 }
 
 // PatchDeck updates is_active and/or expires_at on a deck.
@@ -143,6 +144,9 @@ func (s *ContentService) ListCards(
 	cursorTS time.Time, cursorID string,
 	limit int,
 ) (pagination.Page[model.CardListItem], error) {
+	if _, err := s.checkDeckOwnership(ctx, deckID); err != nil {
+		return pagination.Page[model.CardListItem]{}, err
+	}
 	items, err := s.cards.ListByDeckPaged(ctx, repository.CardListParams{
 		DeckID:      deckID,
 		SearchQuery: searchQuery,
@@ -173,8 +177,16 @@ func (s *ContentService) ListCards(
 	}, nil
 }
 
+// GetCard returns the full card (including answer), enforcing deck ownership for non-admins.
 func (s *ContentService) GetCard(ctx context.Context, id string) (model.Card, error) {
-	return s.cards.FindByID(ctx, id)
+	card, err := s.cards.FindByID(ctx, id)
+	if err != nil {
+		return model.Card{}, err
+	}
+	if _, err := s.checkDeckOwnership(ctx, card.DeckID); err != nil {
+		return model.Card{}, err
+	}
+	return card, nil
 }
 
 func (s *ContentService) DeleteCard(ctx context.Context, id string) error {
@@ -450,10 +462,11 @@ func (s *ContentService) DeleteMyCard(ctx context.Context, cardID string) error 
 
 // ExportDeckCSV returns all cards for a deck ordered by created_at.
 // The deck name is resolved so callers can use it in the Content-Disposition header.
+// Non-admins may only export decks they own.
 func (s *ContentService) ExportDeckCSV(ctx context.Context, deckID string) (deckName string, cards []model.Card, err error) {
-	deck, err := s.decks.FindByID(ctx, deckID)
+	deck, err := s.checkDeckOwnership(ctx, deckID)
 	if err != nil {
-		return "", nil, fmt.Errorf("deck not found: %w", err)
+		return "", nil, err
 	}
 	cards, err = s.cards.ListByDeck(ctx, deckID)
 	if err != nil {
