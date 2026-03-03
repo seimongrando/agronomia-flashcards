@@ -73,6 +73,28 @@
     window.addEventListener("offline", function () { setOfflineBanner(true);  });
 
     /* ════════════════════════════════════════════════════════════════════════
+       TEXT RENDERING
+       Converts plain-text card content (with newlines) to safe HTML.
+       Double newlines become paragraph breaks; single newlines become <br>.
+    ════════════════════════════════════════════════════════════════════════ */
+    function renderCardText(text) {
+        if (!text) return "";
+        // Escape HTML to prevent XSS
+        var escaped = app.esc(text);
+        // Normalise Windows line endings
+        escaped = escaped.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        // Double newline → paragraph break
+        var paragraphs = escaped.split(/\n{2,}/);
+        if (paragraphs.length > 1) {
+            return paragraphs
+                .map(function (p) { return "<p>" + p.replace(/\n/g, "<br>") + "</p>"; })
+                .join("");
+        }
+        // Single newlines → <br>
+        return "<p>" + escaped.replace(/\n/g, "<br>") + "</p>";
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
        INIT
     ════════════════════════════════════════════════════════════════════════ */
     function init() {
@@ -517,11 +539,11 @@
 
         // Front face
         headFront.innerHTML = badgeHTML;
-        bodyFront.innerHTML = '<p>' + app.esc(currentCard.question) + '</p>';
+        bodyFront.innerHTML = renderCardText(currentCard.question);
 
         // Back face
         headBack.innerHTML = badgeHTML;
-        var backHTML = '<p>' + app.esc(currentCard.answer) + '</p>';
+        var backHTML = renderCardText(currentCard.answer);
         if (currentCard.source) {
             backHTML += '<p class="card-source">\uD83D\uDCDA ' + app.esc(currentCard.source) + '</p>';
         }
