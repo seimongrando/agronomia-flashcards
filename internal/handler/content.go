@@ -63,7 +63,7 @@ func NewContentHandler(svc *service.ContentService) *ContentHandler {
 func (h *ContentHandler) CreateDeck(w http.ResponseWriter, r *http.Request) {
 	var req model.CreateDeckRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 	if err := validate.Required("name", req.Name); err != nil {
@@ -82,7 +82,7 @@ func (h *ContentHandler) CreateDeck(w http.ResponseWriter, r *http.Request) {
 			Error(w, http.StatusConflict, "já existe um deck com este nome")
 			return
 		}
-		Error(w, http.StatusInternalServerError, "failed to create deck")
+		Error(w, http.StatusInternalServerError, "erro ao criar deck")
 		return
 	}
 	JSON(w, http.StatusCreated, deck)
@@ -96,11 +96,11 @@ func (h *ContentHandler) GetDeck(w http.ResponseWriter, r *http.Request) {
 	}
 	deck, err := h.svc.GetDeck(r.Context(), id)
 	if errors.Is(err, sql.ErrNoRows) {
-		Error(w, http.StatusNotFound, "deck not found")
+		Error(w, http.StatusNotFound, "deck não encontrado")
 		return
 	}
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to get deck")
+		Error(w, http.StatusInternalServerError, "erro ao buscar deck")
 		return
 	}
 	JSON(w, http.StatusOK, deck)
@@ -115,7 +115,7 @@ func (h *ContentHandler) UpdateDeck(w http.ResponseWriter, r *http.Request) {
 
 	var req model.UpdateDeckRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 	if err := validate.Required("name", req.Name); err != nil {
@@ -129,7 +129,7 @@ func (h *ContentHandler) UpdateDeck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	deck, err := h.svc.UpdateDeck(r.Context(), id, name, req.Description, req.Subject)
-	if deckMutationError(w, err, "deck not found", "failed to update deck") {
+	if deckMutationError(w, err, "deck não encontrado", "erro ao atualizar deck") {
 		return
 	}
 	JSON(w, http.StatusOK, deck)
@@ -144,12 +144,12 @@ func (h *ContentHandler) PatchDeck(w http.ResponseWriter, r *http.Request) {
 
 	var req model.PatchDeckRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 
 	deck, err := h.svc.PatchDeck(r.Context(), id, req)
-	if deckMutationError(w, err, "deck not found", "failed to update deck") {
+	if deckMutationError(w, err, "deck não encontrado", "erro ao atualizar deck") {
 		return
 	}
 	JSON(w, http.StatusOK, deck)
@@ -163,8 +163,7 @@ func (h *ContentHandler) DeleteDeck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := h.svc.DeleteDeck(r.Context(), id)
-	if err != nil {
-		deckMutationError(w, err, "deck not found", "failed to delete deck")
+	if deckMutationError(w, err, "deck não encontrado", "erro ao excluir deck") {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -194,14 +193,14 @@ func (h *ContentHandler) ListCards(w http.ResponseWriter, r *http.Request) {
 	if c := r.URL.Query().Get("cursor"); c != "" {
 		cursorTS, cursorID, err = pagination.DecodeTimestampIDCursor(c)
 		if err != nil {
-			Error(w, http.StatusBadRequest, "invalid cursor")
+			Error(w, http.StatusBadRequest, "cursor inválido")
 			return
 		}
 	}
 
 	page, err := h.svc.ListCards(r.Context(), deckID, searchQuery, cursorTS, cursorID, limit)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to list cards")
+		Error(w, http.StatusInternalServerError, "erro ao listar cards")
 		return
 	}
 	JSON(w, http.StatusOK, page)
@@ -216,11 +215,11 @@ func (h *ContentHandler) GetCardDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	card, err := h.svc.GetCard(r.Context(), id)
 	if errors.Is(err, sql.ErrNoRows) {
-		Error(w, http.StatusNotFound, "card not found")
+		Error(w, http.StatusNotFound, "card não encontrado")
 		return
 	}
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to get card")
+		Error(w, http.StatusInternalServerError, "erro ao buscar card")
 		return
 	}
 	JSON(w, http.StatusOK, card)
@@ -229,7 +228,7 @@ func (h *ContentHandler) GetCardDetail(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) CreateCard(w http.ResponseWriter, r *http.Request) {
 	var req model.CreateCardRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 	if err := validate.UUID("deck_id", req.DeckID); err != nil {
@@ -238,7 +237,7 @@ func (h *ContentHandler) CreateCard(w http.ResponseWriter, r *http.Request) {
 	}
 	ct := model.CardType(req.Type)
 	if !ct.Valid() {
-		Error(w, http.StatusBadRequest, "type must be conceito, processo, aplicacao, or comparacao")
+		Error(w, http.StatusBadRequest, "tipo inválido; use: conceito, processo, aplicacao ou comparacao")
 		return
 	}
 	if err := validate.Required("question", req.Question); err != nil {
@@ -275,7 +274,7 @@ func (h *ContentHandler) CreateCard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	created, err := h.svc.CreateCard(r.Context(), card)
-	if deckMutationError(w, err, "deck not found", "failed to create card") {
+	if deckMutationError(w, err, "deck não encontrado", "erro ao criar card") {
 		return
 	}
 	JSON(w, http.StatusCreated, created)
@@ -290,12 +289,12 @@ func (h *ContentHandler) UpdateCard(w http.ResponseWriter, r *http.Request) {
 
 	var req model.UpdateCardRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 	ct := model.CardType(req.Type)
 	if !ct.Valid() {
-		Error(w, http.StatusBadRequest, "type must be conceito, processo, aplicacao, or comparacao")
+		Error(w, http.StatusBadRequest, "tipo inválido; use: conceito, processo, aplicacao ou comparacao")
 		return
 	}
 	if err := validate.Required("question", req.Question); err != nil {
@@ -331,8 +330,7 @@ func (h *ContentHandler) UpdateCard(w http.ResponseWriter, r *http.Request) {
 		Source:   source,
 	}
 
-	if err := h.svc.UpdateCard(r.Context(), card); err != nil {
-		deckMutationError(w, err, "card not found", "failed to update card")
+	if deckMutationError(w, h.svc.UpdateCard(r.Context(), card), "card não encontrado", "erro ao atualizar card") {
 		return
 	}
 	JSON(w, http.StatusOK, card)
@@ -345,8 +343,7 @@ func (h *ContentHandler) DeleteCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.svc.DeleteCard(r.Context(), id); err != nil {
-		deckMutationError(w, err, "card not found", "failed to delete card")
+	if deckMutationError(w, h.svc.DeleteCard(r.Context(), id), "card não encontrado", "erro ao excluir card") {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -369,7 +366,7 @@ type dryRunResponse struct {
 func (h *ContentHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 	info, ok := middleware.GetAuthInfo(r.Context())
 	if !ok {
-		Error(w, http.StatusUnauthorized, "not authenticated")
+		Error(w, http.StatusUnauthorized, "não autenticado")
 		return
 	}
 
@@ -382,7 +379,7 @@ func (h *ContentHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 		}
 		dk, err := h.svc.GetDeck(r.Context(), dkID)
 		if err != nil {
-			Error(w, http.StatusNotFound, "deck not found")
+			Error(w, http.StatusNotFound, "deck não encontrado")
 			return
 		}
 		defaultDeckID = dk.ID
@@ -391,7 +388,7 @@ func (h *ContentHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 
 	r.Body = http.MaxBytesReader(w, r.Body, csvparse.MaxFileSize)
 	if err := r.ParseMultipartForm(csvparse.MaxFileSize); err != nil {
-		Error(w, http.StatusBadRequest, "file too large or invalid multipart form (max 2 MB)")
+		Error(w, http.StatusBadRequest, "arquivo muito grande ou formulário inválido (máx. 2 MB)")
 		return
 	}
 	defer func() {
@@ -402,7 +399,7 @@ func (h *ContentHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		Error(w, http.StatusBadRequest, "file field is required")
+		Error(w, http.StatusBadRequest, "campo 'file' é obrigatório")
 		return
 	}
 	defer file.Close()
@@ -436,7 +433,7 @@ func (h *ContentHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 
 	importResult, err := h.svc.ImportCSV(r.Context(), info.UserID, header.Filename, parsed, defaultDeckID)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "import failed")
+		Error(w, http.StatusInternalServerError, "falha na importação")
 		return
 	}
 	JSON(w, http.StatusOK, importResult)
@@ -454,11 +451,11 @@ func (h *ContentHandler) ExportDeckCSV(w http.ResponseWriter, r *http.Request) {
 
 	deckName, cards, err := h.svc.ExportDeckCSV(r.Context(), deckID)
 	if errors.Is(err, sql.ErrNoRows) {
-		Error(w, http.StatusNotFound, "deck not found")
+		Error(w, http.StatusNotFound, "deck não encontrado")
 		return
 	}
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "export failed")
+		Error(w, http.StatusInternalServerError, "falha na exportação")
 		return
 	}
 
@@ -494,7 +491,7 @@ func (h *ContentHandler) ExportDeckCSV(w http.ResponseWriter, r *http.Request) {
 func sanitiseFilename(s string) string {
 	var b strings.Builder
 	for _, r := range s {
-		if utf8.RuneLen(r) > 1 || r == '/' || r == '\\' || r == ':' || r == '"' {
+		if utf8.RuneLen(r) > 1 || r == '/' || r == '\\' || r == ':' || r == '"' || r == ';' {
 			b.WriteRune('_')
 		} else {
 			b.WriteRune(r)
@@ -542,7 +539,7 @@ func validateOptionalFields(topic, source *string) (*string, *string, error) {
 func (h *ContentHandler) ListMyDecks(w http.ResponseWriter, r *http.Request) {
 	decks, err := h.svc.ListMyDecks(r.Context())
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to list decks")
+		Error(w, http.StatusInternalServerError, "erro ao listar decks")
 		return
 	}
 	JSON(w, http.StatusOK, map[string]any{"items": decks})
@@ -555,7 +552,7 @@ func (h *ContentHandler) CreateMyDeck(w http.ResponseWriter, r *http.Request) {
 		Description *string `json:"description"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 	if err := validate.Required("name", req.Name); err != nil {
@@ -579,7 +576,7 @@ func (h *ContentHandler) CreateMyDeck(w http.ResponseWriter, r *http.Request) {
 			Error(w, http.StatusConflict, "você já tem um deck com este nome")
 			return
 		}
-		Error(w, http.StatusInternalServerError, "failed to create deck")
+		Error(w, http.StatusInternalServerError, "erro ao criar deck")
 		return
 	}
 	JSON(w, http.StatusCreated, deck)
@@ -597,7 +594,7 @@ func (h *ContentHandler) DeleteMyDeck(w http.ResponseWriter, r *http.Request) {
 			Error(w, http.StatusForbidden, "você não tem permissão para excluir este deck")
 			return
 		}
-		Error(w, http.StatusInternalServerError, "failed to delete deck")
+		Error(w, http.StatusInternalServerError, "erro ao excluir deck")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -616,7 +613,7 @@ func (h *ContentHandler) ListMyDeckCards(w http.ResponseWriter, r *http.Request)
 			Error(w, http.StatusNotFound, "deck não encontrado")
 			return
 		}
-		Error(w, http.StatusInternalServerError, "failed to list cards")
+		Error(w, http.StatusInternalServerError, "erro ao listar cards")
 		return
 	}
 	JSON(w, http.StatusOK, map[string]any{"items": cards})
@@ -635,7 +632,7 @@ func (h *ContentHandler) CreateMyCard(w http.ResponseWriter, r *http.Request) {
 		Type     string `json:"type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 	question, err := validate.StringField("question", req.Question, model.MaxQuestionLen)
@@ -662,7 +659,7 @@ func (h *ContentHandler) CreateMyCard(w http.ResponseWriter, r *http.Request) {
 			Error(w, http.StatusConflict, "já existe um card com esta pergunta neste deck")
 			return
 		}
-		Error(w, http.StatusInternalServerError, "failed to create card")
+		Error(w, http.StatusInternalServerError, "erro ao criar card")
 		return
 	}
 	JSON(w, http.StatusCreated, card)
@@ -681,7 +678,7 @@ func (h *ContentHandler) UpdateMyCard(w http.ResponseWriter, r *http.Request) {
 		Type     string `json:"type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 	question, err := validate.StringField("question", req.Question, model.MaxQuestionLen)
@@ -707,7 +704,7 @@ func (h *ContentHandler) UpdateMyCard(w http.ResponseWriter, r *http.Request) {
 			Error(w, http.StatusConflict, "já existe um card com esta pergunta neste deck")
 			return
 		}
-		Error(w, http.StatusInternalServerError, "failed to update card")
+		Error(w, http.StatusInternalServerError, "erro ao atualizar card")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -725,7 +722,7 @@ func (h *ContentHandler) DeleteMyCard(w http.ResponseWriter, r *http.Request) {
 			Error(w, http.StatusForbidden, "card não encontrado ou sem permissão")
 			return
 		}
-		Error(w, http.StatusInternalServerError, "failed to delete card")
+		Error(w, http.StatusInternalServerError, "erro ao excluir card")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

@@ -22,7 +22,7 @@ func NewClassHandler(svc *service.ClassService) *ClassHandler {
 func (h *ClassHandler) ListMyClasses(w http.ResponseWriter, r *http.Request) {
 	classes, err := h.svc.ListMyClasses(r.Context())
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to list classes")
+		Error(w, http.StatusInternalServerError, "erro ao listar turmas")
 		return
 	}
 	JSON(w, http.StatusOK, map[string]any{"items": classes})
@@ -35,7 +35,7 @@ func (h *ClassHandler) CreateClass(w http.ResponseWriter, r *http.Request) {
 		Description *string `json:"description"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 	name := strings.TrimSpace(req.Name)
@@ -55,7 +55,7 @@ func (h *ClassHandler) CreateClass(w http.ResponseWriter, r *http.Request) {
 	}
 	cl, err := h.svc.CreateClass(r.Context(), name, req.Description)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to create class")
+		Error(w, http.StatusInternalServerError, "erro ao criar turma")
 		return
 	}
 	JSON(w, http.StatusCreated, cl)
@@ -89,7 +89,7 @@ func (h *ClassHandler) UpdateClass(w http.ResponseWriter, r *http.Request) {
 		IsActive    bool    `json:"is_active"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 	name := strings.TrimSpace(req.Name)
@@ -150,12 +150,12 @@ func (h *ClassHandler) JoinClass(w http.ResponseWriter, r *http.Request) {
 		InviteCode string `json:"invite_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 	code := strings.TrimSpace(strings.ToUpper(req.InviteCode))
 	if code == "" {
-		Error(w, http.StatusBadRequest, "invite_code is required")
+		Error(w, http.StatusBadRequest, "código de convite é obrigatório")
 		return
 	}
 	if len(code) > 20 {
@@ -173,7 +173,7 @@ func (h *ClassHandler) JoinClass(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, service.ErrAlreadyMember):
 			Error(w, http.StatusConflict, "você já está inscrito nesta turma.")
 		default:
-			Error(w, http.StatusInternalServerError, "failed to join class")
+			Error(w, http.StatusInternalServerError, "erro ao entrar na turma")
 		}
 		return
 	}
@@ -205,7 +205,7 @@ func (h *ClassHandler) AssignDeck(w http.ResponseWriter, r *http.Request) {
 		DeckID string `json:"deck_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 	if err := validate.UUID("deck_id", req.DeckID); err != nil {
@@ -272,7 +272,7 @@ func (h *ClassHandler) ClassStats(w http.ResponseWriter, r *http.Request) {
 func (h *ClassHandler) ClassOverview(w http.ResponseWriter, r *http.Request) {
 	items, err := h.svc.GetClassOverview(r.Context())
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to load class overview")
+		Error(w, http.StatusInternalServerError, "erro ao carregar resumo das turmas")
 		return
 	}
 	JSON(w, http.StatusOK, map[string]any{"items": items})
@@ -285,6 +285,6 @@ func (h *ClassHandler) classError(w http.ResponseWriter, err error) {
 	case errors.Is(err, service.ErrForbidden):
 		Error(w, http.StatusForbidden, "você não tem permissão para modificar esta turma")
 	default:
-		Error(w, http.StatusInternalServerError, "class operation failed")
+		Error(w, http.StatusInternalServerError, "erro na operação da turma")
 	}
 }

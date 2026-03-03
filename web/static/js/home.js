@@ -8,7 +8,11 @@
     var spinnerEl = document.getElementById("spinner");
     var searchEl  = document.getElementById("deck-search");
 
-    var allDecks = [];
+    var allDecks    = [];
+    var hiddenEl    = document.getElementById("hidden-decks-section");
+    var hiddenGrid  = document.getElementById("hidden-deck-grid");
+    var hiddenCount = document.getElementById("hidden-deck-count");
+    var hiddenToggle = document.getElementById("btn-toggle-hidden");
     var isProfessor = false; // set after auth; used to show inactive badges
 
     function showAuthError() {
@@ -72,14 +76,64 @@
             return res.json();
         }).then(function (page) {
             var decks = (page && page.items) ? page.items : (page || []);
-            allDecks = decks || [];
-            if (allDecks.length === 0) {
+            decks = decks || [];
+            // Split visible vs hidden decks
+            allDecks = decks.filter(function (d) { return !d.hidden; });
+            var hiddenDecks = decks.filter(function (d) { return d.hidden; });
+            if (allDecks.length === 0 && hiddenDecks.length === 0) {
                 emptyEl.classList.remove("hidden");
                 return;
             }
+            if (allDecks.length === 0) {
+                emptyEl.classList.remove("hidden");
+            }
             renderDecks(allDecks);
+            renderHiddenSection(hiddenDecks);
         }).catch(function () {
             gridEl.innerHTML = '<p style="color:var(--danger);padding:1rem">Erro ao carregar decks.</p>';
+        });
+    }
+
+    function renderHiddenSection(hiddenDecks) {
+        if (!hiddenEl || !hiddenGrid || isProfessor) return;
+        if (hiddenDecks.length === 0) {
+            hiddenEl.classList.add("hidden");
+            return;
+        }
+        if (hiddenCount) hiddenCount.textContent = hiddenDecks.length;
+        hiddenGrid.innerHTML = hiddenDecks.map(function (d) {
+            return '<div class="card deck-card deck-card--hidden">' +
+                '<h3 style="font-size:.95rem;margin:0 0 .4rem">' + app.esc(d.name) + '</h3>' +
+                (d.subject ? '<div class="text-muted" style="font-size:.8rem;margin-bottom:.5rem">' + app.esc(d.subject) + '</div>' : '') +
+                '<button class="btn btn-sm btn-outline btn-unhide" data-deck-id="' + d.id + '" data-deck-name="' + app.esc(d.name) + '">' +
+                    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                    '<path d="M1 12S5 4 12 4s11 8 11 8-4 8-11 8S1 12 1 12z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+                    '<circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>' +
+                    '</svg> Exibir' +
+                '</button>' +
+            '</div>';
+        }).join('');
+
+        hiddenGrid.querySelectorAll('.btn-unhide').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                btn.disabled = true;
+                api.post('/api/me/deck-hidden', { deck_id: btn.dataset.deckId, hidden: false })
+                    .then(function (res) {
+                        if (!res.ok) throw new Error();
+                        loadDecks(); // reload to reflect change
+                    })
+                    .catch(function () { btn.disabled = false; });
+            });
+        });
+
+        hiddenEl.classList.remove("hidden");
+    }
+
+    if (hiddenToggle) {
+        hiddenToggle.addEventListener('click', function () {
+            if (!hiddenGrid) return;
+            var isHidden = hiddenGrid.classList.toggle("hidden");
+            hiddenToggle.textContent = isHidden ? 'Mostrar' : 'Ocultar';
         });
     }
 
@@ -108,9 +162,27 @@
 
     // Group decks by subject; decks with no subject go to a special "Outros" group at the end.
     // When `flat` is true (search active) we skip grouping headers for a cleaner result view.
+    function attachHideListeners(container) {
+        container.querySelectorAll(".btn-deck-hide").forEach(function (btn) {
+            btn.addEventListener("click", function (e) {
+                e.stopPropagation();
+                e.preventDefault();
+                btn.disabled = true;
+                var deckId = btn.dataset.deckId;
+                api.post('/api/me/deck-hidden', { deck_id: deckId, hidden: true })
+                    .then(function (res) {
+                        if (!res.ok) throw new Error();
+                        loadDecks();
+                    })
+                    .catch(function () { btn.disabled = false; });
+            });
+        });
+    }
+
     function renderDecks(decks, flat) {
         if (flat) {
             gridEl.innerHTML = decks.map(renderDeckCard).join("");
+            attachHideListeners(gridEl);
             return;
         }
 
@@ -246,6 +318,8 @@
                 sessionStorage.setItem(key, isCollapsed ? "1" : "0");
             });
         });
+
+        attachHideListeners(gridEl);
     }
 
     /* ── Date helpers ───────────────────────────────────────────────────────── */
@@ -352,9 +426,22 @@
             '</div>';
         }
 
-        return '<div class="card deck-card"' + cardStyle + '>' +
+        // Hide button: only for students, on general (non-private, non-class) decks
+        var isGeneral = !d.is_private && !d.class_name;
+        var hideBtn = (!isProfessor && isGeneral && !isDisabled)
+            ? '<button class="btn-deck-hide" data-deck-id="' + d.id + '" title="Ocultar este deck da página inicial" aria-label="Ocultar deck">' +
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+              '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+              '<line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+              '</svg>' +
+              '</button>'
+            : '';
+
+        return '<div class="card deck-card" data-deck-id="' + d.id + '"' + cardStyle + '>' +
             inactiveBanner +
-            (typeChip ? '<div class="deck-card__type-row">' + typeChip + '</div>' : '') +
+            (typeChip || hideBtn
+                ? '<div class="deck-card__type-row" style="justify-content:space-between;align-items:center">' + (typeChip || '<span></span>') + hideBtn + '</div>'
+                : '') +
             '<h3>' + app.esc(d.name) + '</h3>' +
             (d.description ? '<p class="deck-desc">' + app.esc(d.description) + '</p>' : '') +
             (isDisabled ? '' :

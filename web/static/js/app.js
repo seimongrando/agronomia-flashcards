@@ -168,23 +168,38 @@
             var pic   = user.picture_url || "";
 
             // ── Nav links (role-based, suppressed in noNav mode e.g. study) ──
-            var nav = "";
+            // Build the link list once; reuse for both desktop nav and mobile panel.
+            var navLinks = [];
             if (!opts.noNav) {
-                nav = '<nav class="topbar-nav" aria-label="Navegação principal">';
-                nav += '<a href="/" class="nav-link">Início</a>';
-                nav += '<a href="/classes.html" class="nav-link">Turmas</a>';
+                navLinks.push({ href: "/",                    label: "Início" });
+                navLinks.push({ href: "/classes.html",        label: "Turmas" });
                 if (!effIsStaff) {
-                    nav += '<a href="/my_decks.html" class="nav-link">Meus Cards</a>';
+                    navLinks.push({ href: "/my_decks.html",   label: "Meus Cards" });
                 }
-                nav += '<a href="/progress.html" class="nav-link">Progresso</a>';
+                navLinks.push({ href: "/progress.html",       label: "Progresso" });
                 if (effIsStaff) {
-                    nav += '<a href="/teach.html" class="nav-link">Gerenciar</a>';
-                    nav += '<a href="/professor_stats.html" class="nav-link">Painel</a>';
+                    navLinks.push({ href: "/teach.html",      label: "Gerenciar" });
+                    navLinks.push({ href: "/professor_stats.html", label: "Painel" });
                 }
                 if (effIsAdmin) {
-                    nav += '<a href="/admin_users.html" class="nav-link">Usuários</a>';
+                    navLinks.push({ href: "/admin_users.html", label: "Usuários" });
+                }
+            }
+
+            var nav = "";
+            var hamburgerBtn = "";
+            if (!opts.noNav) {
+                nav = '<nav class="topbar-nav" aria-label="Navegação principal">';
+                for (var ni = 0; ni < navLinks.length; ni++) {
+                    nav += '<a href="' + navLinks[ni].href + '" class="nav-link">' + navLinks[ni].label + '</a>';
                 }
                 nav += '</nav>';
+
+                hamburgerBtn =
+                    '<button class="hamburger-btn" id="hamburger-btn" ' +
+                    'aria-label="Abrir menu de navegação" aria-expanded="false" aria-controls="mobile-nav">' +
+                    '<span class="hamburger-icon"></span>' +
+                    '</button>';
             }
 
             // ── User dropdown ──────────────────────────────────────────────
@@ -275,7 +290,7 @@
                     '</div>' +
                 '</div>';
 
-            right.innerHTML = nav + dropdown;
+            right.innerHTML = nav + hamburgerBtn + dropdown;
 
             // ── Dropdown toggle ────────────────────────────────────────────
             var trigger = document.getElementById("user-trigger");
@@ -325,14 +340,179 @@
             var btnExitProf = document.getElementById("btn-exit-professor-mode");
             if (btnExitProf) btnExitProf.addEventListener("click", app.exitProfessorMode);
 
-            // Highlight active nav link
+            // Highlight active nav link (desktop)
             var currentPath = window.location.pathname;
-            var navLinks = right.querySelectorAll(".nav-link");
-            for (var i = 0; i < navLinks.length; i++) {
-                var link = navLinks[i];
-                var href = link.getAttribute("href");
-                if (href === "/" && currentPath === "/") { link.classList.add("nav-link--active"); break; }
-                if (href !== "/" && currentPath.startsWith(href)) { link.classList.add("nav-link--active"); break; }
+            var desktopLinks = right.querySelectorAll(".nav-link");
+            for (var i = 0; i < desktopLinks.length; i++) {
+                var dlink = desktopLinks[i];
+                var dhref = dlink.getAttribute("href");
+                if (dhref === "/" && currentPath === "/") { dlink.classList.add("nav-link--active"); break; }
+                if (dhref !== "/" && currentPath.startsWith(dhref)) { dlink.classList.add("nav-link--active"); break; }
+            }
+
+            // ── Mobile nav (hamburger panel) ────────────────────────────────
+            if (!opts.noNav) {
+                // Remove previous panel / backdrop if re-rendering.
+                var oldPanel    = document.getElementById("mobile-nav");
+                var oldBackdrop = document.getElementById("mobile-nav-backdrop");
+                if (oldPanel)    oldPanel.remove();
+                if (oldBackdrop) oldBackdrop.remove();
+
+                // Build panel — full-featured: user header + nav + profile/logout.
+                var panel = document.createElement("div");
+                panel.id        = "mobile-nav";
+                panel.className = "mobile-nav";
+                panel.setAttribute("role", "dialog");
+                panel.setAttribute("aria-label", "Menu principal");
+                panel.setAttribute("aria-modal", "true");
+
+                // ── User header ───────────────────────────────────────────────
+                var mInitials = name.split(" ").slice(0, 2).map(function (w) { return w[0]; }).join("").toUpperCase();
+                var mAvatar = pic
+                    ? '<img src="' + app.esc(pic) + '" alt="" class="mobile-nav-avatar">'
+                    : '<div class="mobile-nav-avatar mobile-nav-avatar--initials">' + app.esc(mInitials) + '</div>';
+
+                var mRoles = roles.map(function (r) {
+                    return '<span class="role-badge role-badge--' + app.esc(r) + '">' + app.esc(r) + '</span>';
+                }).join(" ");
+                if (studentMode)   mRoles += ' <span class="role-badge" style="background:#D97706;color:#fff">modo aluno</span>';
+                if (professorMode) mRoles += ' <span class="role-badge" style="background:#2563EB;color:#fff">modo professor</span>';
+
+                var headerDiv = document.createElement("div");
+                headerDiv.className = "mobile-nav-header";
+                headerDiv.innerHTML =
+                    mAvatar +
+                    '<div class="mobile-nav-header__info">' +
+                        '<div class="mobile-nav-header__name">' + app.esc(name) + '</div>' +
+                        '<div class="mobile-nav-header__email">' + app.esc(email) + '</div>' +
+                        '<div class="mobile-nav-header__roles">' + mRoles + '</div>' +
+                    '</div>';
+                panel.appendChild(headerDiv);
+
+                // ── Divider ───────────────────────────────────────────────────
+                var addDivider = function () {
+                    var d = document.createElement("div");
+                    d.className = "mobile-nav-divider";
+                    panel.appendChild(d);
+                };
+                addDivider();
+
+                // ── Nav links ─────────────────────────────────────────────────
+                for (var mi = 0; mi < navLinks.length; mi++) {
+                    var a = document.createElement("a");
+                    a.href = navLinks[mi].href;
+                    a.className = "mobile-nav-link";
+                    a.textContent = navLinks[mi].label;
+                    if ((navLinks[mi].href === "/" && currentPath === "/") ||
+                        (navLinks[mi].href !== "/" && currentPath.startsWith(navLinks[mi].href))) {
+                        a.classList.add("mobile-nav-link--active");
+                    }
+                    panel.appendChild(a);
+                }
+
+                // ── Divider + profile/account ─────────────────────────────────
+                addDivider();
+
+                var profileA = document.createElement("a");
+                profileA.href = "/me.html";
+                profileA.className = "mobile-nav-link";
+                profileA.innerHTML =
+                    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                    '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+                    '<circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2"/>' +
+                    '</svg>Meu perfil';
+                panel.appendChild(profileA);
+
+                // ── Preview mode items ─────────────────────────────────────────
+                if (realIsStaff) {
+                    addDivider();
+                    if (studentMode) {
+                        var exitStudentBtn = document.createElement("button");
+                        exitStudentBtn.className = "mobile-nav-link mobile-nav-link--mode-exit";
+                        exitStudentBtn.innerHTML =
+                            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                            '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                            '</svg>Sair do Modo Aluno';
+                        exitStudentBtn.addEventListener("click", function () { closeMobileNav(); app.exitStudentMode(); });
+                        panel.appendChild(exitStudentBtn);
+                    } else if (professorMode) {
+                        var exitProfBtn = document.createElement("button");
+                        exitProfBtn.className = "mobile-nav-link mobile-nav-link--mode-exit";
+                        exitProfBtn.innerHTML =
+                            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                            '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                            '</svg>Sair do Modo Professor';
+                        exitProfBtn.addEventListener("click", function () { closeMobileNav(); app.exitProfessorMode(); });
+                        panel.appendChild(exitProfBtn);
+                    } else {
+                        var enterStudentBtn = document.createElement("button");
+                        enterStudentBtn.className = "mobile-nav-link mobile-nav-link--mode-enter";
+                        enterStudentBtn.innerHTML =
+                            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                            '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+                            '<circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/>' +
+                            '<path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+                            '</svg>Visualizar como aluno';
+                        enterStudentBtn.addEventListener("click", function () { closeMobileNav(); app.enterStudentMode(); });
+                        panel.appendChild(enterStudentBtn);
+                        if (realIsAdmin) {
+                            var enterProfBtn = document.createElement("button");
+                            enterProfBtn.className = "mobile-nav-link mobile-nav-link--mode-enter";
+                            enterProfBtn.innerHTML =
+                                '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                                '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 5.19 15.85a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 5h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 12.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                                '</svg>Visualizar como professor';
+                            enterProfBtn.addEventListener("click", function () { closeMobileNav(); app.enterProfessorMode(); });
+                            panel.appendChild(enterProfBtn);
+                        }
+                    }
+                }
+
+                // ── Logout ────────────────────────────────────────────────────
+                addDivider();
+                var logoutBtn2 = document.createElement("button");
+                logoutBtn2.className = "mobile-nav-link mobile-nav-link--logout";
+                logoutBtn2.innerHTML =
+                    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                    '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                    '</svg>Sair';
+                logoutBtn2.addEventListener("click", function () { closeMobileNav(); logout(); });
+                panel.appendChild(logoutBtn2);
+
+                document.body.appendChild(panel);
+
+                // Backdrop.
+                var backdrop = document.createElement("div");
+                backdrop.id = "mobile-nav-backdrop";
+                backdrop.className = "mobile-nav-backdrop";
+                document.body.appendChild(backdrop);
+
+                // Wiring.
+                var hBtn = document.getElementById("hamburger-btn");
+
+                function openMobileNav() {
+                    panel.classList.add("is-open");
+                    backdrop.classList.add("is-open");
+                    if (hBtn) { hBtn.classList.add("is-open"); hBtn.setAttribute("aria-expanded", "true"); }
+                    document.body.style.overflow = "hidden";
+                }
+                function closeMobileNav() {
+                    panel.classList.remove("is-open");
+                    backdrop.classList.remove("is-open");
+                    if (hBtn) { hBtn.classList.remove("is-open"); hBtn.setAttribute("aria-expanded", "false"); }
+                    document.body.style.overflow = "";
+                }
+
+                if (hBtn) {
+                    hBtn.addEventListener("click", function (e) {
+                        e.stopPropagation();
+                        panel.classList.contains("is-open") ? closeMobileNav() : openMobileNav();
+                    });
+                }
+                backdrop.addEventListener("click", closeMobileNav);
+                panel.querySelectorAll(".mobile-nav-link").forEach(function (l) {
+                    if (l.tagName === "A") l.addEventListener("click", closeMobileNav);
+                });
             }
 
             // ── Preview-mode floating banner (bottom) ─────────────────────
@@ -477,6 +657,39 @@
         for (var i = 0; i < raw.length; i++) { arr[i] = raw.charCodeAt(i); }
         return arr;
     }
+
+    // ── Character counters ────────────────────────────────────────────────────
+    // Wire up live 0/N counters for all [data-counter] inputs & textareas in scope.
+    // Call with a container element after dynamic forms are rendered.
+    window.app.initCharCounters = function (scope) {
+        (scope || document).querySelectorAll("[data-counter][maxlength]").forEach(function (el) {
+            var max = parseInt(el.getAttribute("maxlength"), 10);
+            if (!max) return;
+            // Avoid double-wiring (e.g. modal reopened).
+            if (el._counterWired) return;
+            el._counterWired = true;
+
+            var counter = document.createElement("span");
+            counter.className = "char-counter";
+            counter.setAttribute("aria-live", "polite");
+            // Insert right after the element so it flows below it.
+            el.insertAdjacentElement("afterend", counter);
+
+            function update() {
+                var len = el.value.length;
+                counter.textContent = len + "/" + max;
+                counter.classList.toggle("char-counter--warn", len >= Math.floor(max * 0.85));
+                counter.classList.toggle("char-counter--over", len > max);
+            }
+            el.addEventListener("input", update);
+            update(); // render initial state
+        });
+    };
+
+    // Auto-wire static inputs on page load.
+    document.addEventListener("DOMContentLoaded", function () {
+        window.app.initCharCounters(document);
+    });
 
     // Expose unsubscribe for the profile menu (optional).
     window.app.unsubscribeNotifications = function () {

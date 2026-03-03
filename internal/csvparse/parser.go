@@ -64,7 +64,7 @@ func Parse(r io.Reader, opts ParseOptions) (*Result, error) {
 
 	header, err := reader.Read()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read CSV header: %w", err)
+		return nil, fmt.Errorf("falha ao ler cabeçalho do CSV: %w", err)
 	}
 
 	colIndex := buildColumnIndex(header)
@@ -72,13 +72,13 @@ func Parse(r io.Reader, opts ParseOptions) (*Result, error) {
 	_, hasDeckCol := colIndex["deck"]
 	if !hasDeckCol {
 		if opts.DefaultDeck == "" {
-			return nil, fmt.Errorf("missing required column: deck (or supply a deckId for single-deck mode)")
+			return nil, fmt.Errorf("coluna obrigatória ausente: deck (ou informe um deckId para modo de deck único)")
 		}
 	}
 
 	for _, col := range requiredColumnsWithDeck {
 		if _, ok := colIndex[col]; !ok {
-			return nil, fmt.Errorf("missing required column: %s", col)
+			return nil, fmt.Errorf("coluna obrigatória ausente: %s", col)
 		}
 	}
 
@@ -90,13 +90,13 @@ func Parse(r io.Reader, opts ParseOptions) (*Result, error) {
 			break
 		}
 		if result.TotalRows >= MaxRows {
-			return nil, fmt.Errorf("CSV exceeds maximum of %d data rows", MaxRows)
+			return nil, fmt.Errorf("CSV excede o máximo de %d linhas de dados", MaxRows)
 		}
 		if readErr != nil {
 			result.Rows = append(result.Rows, Row{
 				Line:   lineNum,
 				Status: "error",
-				Error:  fmt.Sprintf("parse error: %v", readErr),
+				Error:  fmt.Sprintf("erro de leitura na linha: %v", readErr),
 			})
 			result.InvalidRows++
 			result.TotalRows++
@@ -177,33 +177,33 @@ func validateRow(record []string, colIndex map[string]int, line int, opts ParseO
 	var errs []string
 
 	if row.Deck == "" {
-		errs = append(errs, "deck is required")
+		errs = append(errs, "deck é obrigatório")
 	} else if utf8.RuneCountInString(row.Deck) > model.MaxDeckNameLen {
-		errs = append(errs, fmt.Sprintf("deck name exceeds %d chars", model.MaxDeckNameLen))
+		errs = append(errs, fmt.Sprintf("nome do deck excede %d caracteres", model.MaxDeckNameLen))
 	}
 
 	if row.Question == "" {
-		errs = append(errs, "question is required")
+		errs = append(errs, "pergunta é obrigatória")
 	} else if utf8.RuneCountInString(row.Question) > model.MaxQuestionLen {
-		errs = append(errs, fmt.Sprintf("question exceeds %d chars", model.MaxQuestionLen))
+		errs = append(errs, fmt.Sprintf("pergunta excede %d caracteres", model.MaxQuestionLen))
 	}
 
 	if row.Answer == "" {
-		errs = append(errs, "answer is required")
+		errs = append(errs, "resposta é obrigatória")
 	} else if utf8.RuneCountInString(row.Answer) > model.MaxAnswerLen {
-		errs = append(errs, fmt.Sprintf("answer exceeds %d chars", model.MaxAnswerLen))
+		errs = append(errs, fmt.Sprintf("resposta excede %d caracteres", model.MaxAnswerLen))
 	}
 
 	ct := model.CardType(row.Type)
 	if !ct.Valid() {
-		errs = append(errs, fmt.Sprintf("invalid type %q; must be conceito, processo, aplicacao, or comparacao", row.Type))
+		errs = append(errs, fmt.Sprintf("tipo inválido %q; deve ser: conceito, processo, aplicacao ou comparacao", row.Type))
 	}
 
 	if row.Topic != "" && utf8.RuneCountInString(row.Topic) > model.MaxTopicLen {
-		errs = append(errs, fmt.Sprintf("topic exceeds %d chars", model.MaxTopicLen))
+		errs = append(errs, fmt.Sprintf("tópico excede %d caracteres", model.MaxTopicLen))
 	}
 	if row.Source != "" && utf8.RuneCountInString(row.Source) > model.MaxSourceLen {
-		errs = append(errs, fmt.Sprintf("source exceeds %d chars", model.MaxSourceLen))
+		errs = append(errs, fmt.Sprintf("fonte excede %d caracteres", model.MaxSourceLen))
 	}
 
 	if len(errs) > 0 {

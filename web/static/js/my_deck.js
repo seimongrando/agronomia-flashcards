@@ -169,8 +169,8 @@
 
     function startEdit(id, question, answer, type) {
         editingCardId = id;
-        if (inpQuestion) inpQuestion.value = question;
-        if (inpAnswer)   inpAnswer.value   = answer;
+        if (inpQuestion) { inpQuestion.value = question; inpQuestion.dispatchEvent(new Event("input")); }
+        if (inpAnswer)   { inpAnswer.value   = answer;   inpAnswer.dispatchEvent(new Event("input")); }
         setSelectedType(type);
         if (formTitle)   formTitle.textContent = "Editar card";
         if (btnSave)     btnSave.textContent   = "Salvar alterações";
@@ -182,8 +182,8 @@
 
     function resetForm() {
         editingCardId = null;
-        if (inpQuestion) inpQuestion.value = "";
-        if (inpAnswer)   inpAnswer.value   = "";
+        if (inpQuestion) { inpQuestion.value = ""; inpQuestion.dispatchEvent(new Event("input")); }
+        if (inpAnswer)   { inpAnswer.value   = ""; inpAnswer.dispatchEvent(new Event("input")); }
         setSelectedType("conceito");
         if (formTitle)   formTitle.textContent = "Adicionar card";
         if (btnSave)     btnSave.textContent   = "Salvar card";

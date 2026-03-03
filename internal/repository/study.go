@@ -29,6 +29,9 @@ type DeckListParams struct {
 	//   - general decks (not private, no class assignments)
 	// When false (management view) all matching decks are returned without class filter.
 	ApplyVisibility bool
+	// IncludeHidden — when ApplyVisibility=true, include general decks the student has
+	// hidden (DeckWithCounts.Hidden=true). When false (default), hidden decks are excluded.
+	IncludeHidden bool
 }
 
 // ListDecksWithCountsPaged returns a page of decks ordered by (name ASC, id ASC),
@@ -51,6 +54,7 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 	lateralJoin := ""
 	classIDCol := "NULL::text"
 	classNameCol := "NULL::text"
+	hiddenCol := "false"
 	groupByExtra := ""
 	if p.ApplyVisibility {
 		lateralJoin = fmt.Sprintf(`
@@ -62,10 +66,14 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 			WHERE cd.deck_id = d.id
 			ORDER BY cl.name ASC
 			LIMIT 1
-		) clx ON true`, uid)
+		) clx ON true
+		LEFT JOIN user_deck_hidden udh ON udh.deck_id = d.id AND udh.user_id = %s`, uid, uid)
 		classIDCol = "clx.class_id"
 		classNameCol = "clx.class_name"
-		groupByExtra = ", clx.class_id, clx.class_name"
+		// A deck is "hidden" when the student explicitly hid it AND it is a general deck
+		// (not their own private deck, not assigned to a class they are in).
+		hiddenCol = "(udh.user_id IS NOT NULL AND d.is_private = false AND clx.class_id IS NULL)"
+		groupByExtra = ", clx.class_id, clx.class_name, udh.user_id"
 	}
 
 	fmt.Fprintf(&sb, `
@@ -75,12 +83,13 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 		       COUNT(c.id)::int AS total_cards,
 		       COUNT(CASE WHEN c.id IS NOT NULL AND (rv.id IS NULL OR rv.next_due <= now()) THEN 1 END)::int AS due_now,
 		       MAX(rv.updated_at) AS last_studied,
-		       MIN(rv.next_due) FILTER (WHERE rv.next_due > now()) AS next_review
+		       MIN(rv.next_due) FILTER (WHERE rv.next_due > now()) AS next_review,
+		       %s AS hidden
 		FROM decks d
 		%s
 		LEFT JOIN cards c    ON c.deck_id = d.id
 		LEFT JOIN reviews rv ON rv.card_id = c.id AND rv.user_id = %s
-		WHERE 1=1`, classIDCol, classNameCol, lateralJoin, uid)
+		WHERE 1=1`, classIDCol, classNameCol, hiddenCol, lateralJoin, uid)
 
 	if !p.ShowAll {
 		sb.WriteString(` AND d.is_active = true AND (d.expires_at IS NULL OR d.expires_at > now())`)
@@ -101,6 +110,12 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 		    AND NOT EXISTS (SELECT 1 FROM class_decks cd WHERE cd.deck_id = d.id)
 		  )
 		)`, uid, uid)
+
+		// Unless IncludeHidden, exclude general decks the student has hidden.
+		if !p.IncludeHidden {
+			fmt.Fprintf(&sb, `
+		AND NOT (udh.user_id IS NOT NULL AND d.is_private = false AND clx.class_id IS NULL)`)
+		}
 	}
 
 	if p.CursorName != "" || p.CursorID != "" {
@@ -138,6 +153,7 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 			&exp, &d.CreatedAt, &createdBy,
 			&classID, &className,
 			&d.TotalCards, &d.DueNow, &lastStudied, &nextRv,
+			&d.Hidden,
 		); err != nil {
 			return nil, fmt.Errorf("deck counts scan: %w", err)
 		}
@@ -166,6 +182,57 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 // ListDecksWithCounts is kept for backward compatibility.
 func (r *StudyRepo) ListDecksWithCounts(ctx context.Context, userID string) ([]model.DeckWithCounts, error) {
 	return r.ListDecksWithCountsPaged(ctx, DeckListParams{UserID: userID, Limit: 200})
+}
+
+// DeckAccessible reports whether the given user may study from the specified deck.
+// A deck is accessible when it is active, not expired, AND one of:
+//   - a general deck (not private, not class-assigned) — visible to all students
+//   - the user's own private deck
+//   - a deck assigned to a class the user is enrolled in
+//
+// Staff roles (professor, admin) are checked by the service layer before calling this.
+func (r *StudyRepo) DeckAccessible(ctx context.Context, userID, deckID string) (bool, error) {
+	const q = `
+		SELECT EXISTS (
+			SELECT 1
+			FROM   decks d
+			LEFT JOIN class_decks  cd ON cd.deck_id    = d.id
+			LEFT JOIN class_members cm ON cm.class_id   = cd.class_id
+			                          AND cm.user_id    = $1
+			WHERE  d.id        = $2
+			  AND  d.is_active = true
+			  AND  (d.expires_at IS NULL OR d.expires_at > now())
+			  AND  (
+			         (d.is_private = false AND cd.deck_id IS NULL)
+			         OR d.created_by = $1
+			         OR cm.user_id  IS NOT NULL
+			       )
+		)`
+	var ok bool
+	return ok, r.db.QueryRowContext(ctx, q, userID, deckID).Scan(&ok)
+}
+
+// CardDeckID returns the deck_id for the given card. Returns sql.ErrNoRows when
+// the card does not exist.
+func (r *StudyRepo) CardDeckID(ctx context.Context, cardID string) (string, error) {
+	var deckID string
+	err := r.db.QueryRowContext(ctx, `SELECT deck_id FROM cards WHERE id = $1`, cardID).Scan(&deckID)
+	return deckID, err
+}
+
+// HideDeck inserts or removes a row in user_deck_hidden for the given student/deck pair.
+// Only meaningful for general decks (enforcement is in the UI — the repo blindly upserts).
+func (r *StudyRepo) HideDeck(ctx context.Context, userID, deckID string, hide bool) error {
+	var q string
+	if hide {
+		q = `INSERT INTO user_deck_hidden (user_id, deck_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`
+	} else {
+		q = `DELETE FROM user_deck_hidden WHERE user_id = $1 AND deck_id = $2`
+	}
+	if _, err := r.db.ExecContext(ctx, q, userID, deckID); err != nil {
+		return fmt.Errorf("hide deck: %w", err)
+	}
+	return nil
 }
 
 // NextDueCard returns the card with the oldest due date (or never-reviewed cards first).

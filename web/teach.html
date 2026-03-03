@@ -75,13 +75,13 @@
                     <div class="field-row">
                         <div class="field" style="flex:2">
                             <input id="new-deck-name" type="text" class="input"
-                                   placeholder="Nome do deck (máx. 80 car.)"
-                                   maxlength="80" aria-label="Nome do novo deck">
+                                   placeholder="Nome do deck"
+                                   maxlength="80" data-counter aria-label="Nome do novo deck">
                         </div>
                         <div class="field" style="flex:1">
                             <input id="new-deck-subject" type="text" class="input"
                                    placeholder="Matéria (opcional)"
-                                   maxlength="80" aria-label="Matéria do deck"
+                                   maxlength="80" data-counter aria-label="Matéria do deck"
                                    list="subject-suggestions">
                             <datalist id="subject-suggestions"></datalist>
                         </div>
@@ -192,6 +192,20 @@
                                         </div>
                                     </div>
 
+                                    <p class="csv-guide__title" style="margin-top:.75rem">Limites por campo</p>
+                                    <table class="csv-limits-table">
+                                        <thead><tr><th>Coluna</th><th>Máx. caracteres</th><th>Obrigatório</th></tr></thead>
+                                        <tbody>
+                                            <tr><td><code>deck</code></td><td>80</td><td>Sim *</td></tr>
+                                            <tr><td><code>subject</code></td><td>80</td><td>Não</td></tr>
+                                            <tr><td><code>type</code></td><td>—</td><td>Sim</td></tr>
+                                            <tr><td><code>question</code></td><td>500</td><td>Sim</td></tr>
+                                            <tr><td><code>answer</code></td><td>2.000</td><td>Sim</td></tr>
+                                            <tr><td><code>topic</code></td><td>80</td><td>Não</td></tr>
+                                            <tr><td><code>source</code></td><td>120</td><td>Não</td></tr>
+                                        </tbody>
+                                    </table>
+
                                     <p class="csv-guide__title" style="margin-top:.75rem">Exemplo</p>
                                     <pre class="csv-example">deck,subject,type,question,answer,topic,source
 Fotoss&iacute;ntese,Biologia Vegetal,conceito,O que &eacute; fotoss&iacute;ntese?,Convers&atilde;o de luz em glicose.,Cloroplasto,Cap. 5
@@ -199,8 +213,9 @@ Fotoss&iacute;ntese,Biologia Vegetal,processo,Fases da fotoss&iacute;ntese?,Fase
 Fertilidade,Qu&iacute;mica do Solo,aplicacao,Como calcular calagem?,Dose = (V2-V1) &times; CTC / PRNT &times; 100,Calagem,UFPR</pre>
 
                                     <p class="csv-guide__note" style="margin-top:.6rem">
-                                        Se um deck j&aacute; est&aacute; selecionado acima, a coluna <code>deck</code> pode ser omitida.
+                                        * Se um deck j&aacute; est&aacute; selecionado acima, a coluna <code>deck</code> pode ser omitida.
                                         A mesma pergunta importada duas vezes <strong>atualiza</strong> o card existente (sem duplicatas).
+                                        Arquivo: m&aacute;x. 2 MB e 2.000 linhas.
                                     </p>
                                 </div>
                             </div>
@@ -298,30 +313,28 @@ Fertilidade,Qu&iacute;mica do Solo,aplicacao,Como calcular calagem?,Dose = (V2-V
                                 <label for="card-question">Pergunta *</label>
                                 <textarea id="card-question" class="textarea"
                                           placeholder="Escreva a pergunta ou estímulo…"
-                                          maxlength="500" rows="3"
+                                          maxlength="500" rows="3" data-counter
                                           aria-required="true"></textarea>
-                                <span class="field-hint">M&aacute;x. 500 caracteres.</span>
                             </div>
 
                             <div class="field">
                                 <label for="card-answer">Resposta *</label>
                                 <textarea id="card-answer" class="textarea"
                                           placeholder="Escreva a resposta completa…"
-                                          maxlength="2000" rows="4"
+                                          maxlength="2000" rows="4" data-counter
                                           aria-required="true"></textarea>
-                                <span class="field-hint">M&aacute;x. 2000 caracteres.</span>
                             </div>
 
                             <div class="field-row">
                                 <div class="field">
                                     <label for="card-topic">T&oacute;pico (opcional)</label>
                                     <input id="card-topic" type="text" class="input"
-                                           maxlength="80" placeholder="ex: Fotossíntese">
+                                           maxlength="80" placeholder="ex: Fotossíntese" data-counter>
                                 </div>
                                 <div class="field">
                                     <label for="card-source">Fonte (opcional)</label>
                                     <input id="card-source" type="text" class="input"
-                                           maxlength="120" placeholder="ex: Livro Cap. 3">
+                                           maxlength="120" placeholder="ex: Livro Cap. 3" data-counter>
                                 </div>
                             </div>
 

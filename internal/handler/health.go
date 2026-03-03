@@ -20,7 +20,7 @@ func (h *HealthHandler) Healthz(w http.ResponseWriter, _ *http.Request) {
 
 func (h *HealthHandler) Readyz(w http.ResponseWriter, r *http.Request) {
 	if err := h.svc.Ping(r.Context()); err != nil {
-		Error(w, http.StatusServiceUnavailable, "database unreachable")
+		Error(w, http.StatusServiceUnavailable, "banco de dados inacessível")
 		return
 	}
 	JSON(w, http.StatusOK, map[string]string{"status": "ready"})

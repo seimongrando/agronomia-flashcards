@@ -276,6 +276,10 @@
                 editTopic.value    = card.topic    || "";
                 editSource.value   = card.source   || "";
                 btnModalSave.disabled = false;
+                // Refresh character counters now that values are populated.
+                [editQuestion, editAnswer, editTopic, editSource].forEach(function (el) {
+                    el.dispatchEvent(new Event("input"));
+                });
             })
             .catch(function () {
                 editError.textContent = "Erro ao carregar card.";
@@ -471,6 +475,10 @@
             if (topbarDeckName) topbarDeckName.textContent = deck.name;
             renderStatusBadge(deck);
             renameForm.classList.add("hidden");
+            // Keep the URL in sync with the new deck name so a refresh loads correctly.
+            var url = new URL(window.location.href);
+            url.searchParams.set("deckName", deck.name);
+            window.history.replaceState(null, "", url.toString());
             toast("Deck atualizado!", "ok");
         })
         .catch(function (err) {
@@ -500,13 +508,15 @@
         });
     }
 
-    /* ── Status badge ────────────────────────────── */
+    /* ── Status badge + publish button ──────────── */
+    var btnPublishDeck = document.getElementById("btn-publish-deck");
+
     function renderStatusBadge(deck) {
         if (!deckStatusBadge) return;
         var isActive   = deck.is_active !== false;
         var isExpired  = deck.expires_at && new Date(deck.expires_at) <= new Date();
         if (!isActive) {
-            deckStatusBadge.innerHTML = '<span class="badge badge-inactive">Inativo</span>';
+            deckStatusBadge.innerHTML = '<span class="badge badge-draft">Rascunho</span>';
         } else if (isExpired) {
             deckStatusBadge.innerHTML = '<span class="badge badge-expired">Expirado</span>';
         } else if (deck.expires_at) {
@@ -514,8 +524,48 @@
             deckStatusBadge.innerHTML = '<span class="badge badge-expiring" title="Expira em ' +
                 d.toLocaleDateString("pt-BR") + '">Expira ' + d.toLocaleDateString("pt-BR") + '</span>';
         } else {
-            deckStatusBadge.innerHTML = '';
+            deckStatusBadge.innerHTML = '<span class="badge badge-green">Publicado</span>';
         }
+
+        // Show/update publish toggle button
+        if (btnPublishDeck && !isExpired) {
+            if (isActive) {
+                btnPublishDeck.className = "btn btn-sm btn-outline";
+                btnPublishDeck.style.display = "inline-flex";
+                btnPublishDeck.innerHTML =
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                    '<path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h11M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+                    'Despublicar';
+                btnPublishDeck.dataset.publish = '0';
+            } else {
+                btnPublishDeck.className = "btn btn-sm btn-primary";
+                btnPublishDeck.style.display = "inline-flex";
+                btnPublishDeck.innerHTML =
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                    '<path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+                    'Publicar';
+                btnPublishDeck.dataset.publish = '1';
+            }
+        }
+    }
+
+    if (btnPublishDeck) {
+        btnPublishDeck.addEventListener('click', function () {
+            if (!currentDeck) return;
+            var publish = btnPublishDeck.dataset.publish === '1';
+            btnPublishDeck.disabled = true;
+            api.patch('/api/content/decks/' + currentDeck.id, { is_active: publish })
+                .then(function (res) { return res.ok ? res.json() : Promise.reject(); })
+                .then(function (updated) {
+                    currentDeck = updated;
+                    renderStatusBadge(updated);
+                    toast(publish ? 'Deck publicado! Alunos já podem acessá-lo.' : 'Deck movido para rascunho.', 'ok');
+                })
+                .catch(function () {
+                    toast('Erro ao atualizar deck.', 'error');
+                })
+                .finally(function () { btnPublishDeck.disabled = false; });
+        });
     }
 
     /* ── Helpers ─────────────────────────────────── */

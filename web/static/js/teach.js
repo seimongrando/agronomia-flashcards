@@ -321,10 +321,10 @@
             var isExpired = d.expires_at && new Date(d.expires_at) <= now;
             var active    = d.is_active && !isExpired;
             var statusTag = active
-                ? '<span class="badge badge-green" style="font-size:.72rem">Ativo</span>'
+                ? '<span class="badge badge-green" style="font-size:.72rem">Publicado</span>'
                 : (isExpired
                     ? '<span class="badge badge-expired" style="font-size:.72rem">Expirado</span>'
-                    : '<span class="badge badge-inactive" style="font-size:.72rem">Inativo</span>');
+                    : '<span class="badge badge-draft" style="font-size:.72rem">Rascunho</span>');
 
             var owned      = canEditDeck(d);
             var isSelected = d.id === currentDeckID;
@@ -346,11 +346,20 @@
                   '</div>'
                 : '';
 
+            // Quick publish/unpublish button for owned non-expired decks
+            var publishBtn = (owned && !selectionMode && !isExpired)
+                ? '<button class="btn-publish-quick" data-deck-id="' + d.id + '" data-active="' + (active ? '1' : '0') + '" title="' + (active ? 'Despublicar deck' : 'Publicar deck') + '">' +
+                    (active
+                        ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h11M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Rascunho'
+                        : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Publicar') +
+                  '</button>'
+                : '';
+
             return '<div class="deck-picker-card' + selectedCls + checkedCls + readOnlyCls + '" role="listitem" data-id="' + d.id + '" data-name="' + app.esc(d.name) + '" data-owned="' + (owned ? '1' : '0') + '" tabindex="0" aria-pressed="' + isSelected + '">' +
                 checkOverlay +
                 '<div class="deck-picker-card__head">' +
                     '<span class="deck-picker-card__name">' + app.esc(d.name) + '</span>' +
-                    '<div style="display:flex;gap:.3rem;flex-wrap:wrap">' + statusTag + ownerTag + '</div>' +
+                    '<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">' + statusTag + ownerTag + publishBtn + '</div>' +
                 '</div>' +
                 (d.subject ? '<div class="deck-picker-card__sub">' + app.esc(d.subject) + '</div>' : '') +
                 '<div class="deck-picker-card__count">' + (d.total_cards || 0) + ' carta' + (d.total_cards !== 1 ? 's' : '') + '</div>' +
@@ -380,6 +389,24 @@
             });
             el.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+            });
+        });
+
+        // Quick publish/unpublish click handlers — stop propagation so the card click does not fire
+        deckPickerGrid.querySelectorAll('.btn-publish-quick').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var deckId  = btn.dataset.deckId;
+                var publish = btn.dataset.active !== '1'; // toggle
+                btn.disabled = true;
+                api.patch('/api/content/decks/' + deckId, { is_active: publish })
+                    .then(function (res) { return res.ok ? res.json() : Promise.reject(); })
+                    .then(function (updated) {
+                        var idx = allDecks.findIndex(function (d) { return d.id === deckId; });
+                        if (idx >= 0) { allDecks[idx].is_active = updated.is_active; }
+                        renderDeckGrid(allDecks);
+                    })
+                    .catch(function () { btn.disabled = false; });
             });
         });
     }
@@ -461,9 +488,9 @@
                     id: deck.id,
                     name: deck.name,
                     subject: deck.subject,
-                    is_active: true,
+                    is_active: !!deck.is_active, // server default is now false (draft)
                     total_cards: 0,
-                    created_by: currentUserID  // professor who just created it always owns it
+                    created_by: currentUserID
                 });
                 renderDeckGrid(allDecks);
                 selectDeck(deck.id, deck.name); // owned will be derived from allDecks above
@@ -526,8 +553,8 @@
     }
 
     function renderPreview(result) {
-        var valid   = result.valid_rows   || 0;
-        var invalid = result.invalid_rows || 0;
+        var valid   = result.valid_rows    || 0;
+        var invalid = result.invalid_count || 0;
         var total   = result.total_rows   || 0;
         var shown   = result.rows ? result.rows.length : 0;
 

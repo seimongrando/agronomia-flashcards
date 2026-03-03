@@ -19,6 +19,15 @@ type DeckWithCounts struct {
 	DueNow      int        `json:"due_now"`
 	LastStudied *time.Time `json:"last_studied,omitempty"`
 	NextReview  *time.Time `json:"next_review,omitempty"`
+	// Hidden is true when the student has hidden this general deck from their home page.
+	// Only populated on student-facing list responses (ApplyVisibility=true).
+	Hidden bool `json:"hidden,omitempty"`
+}
+
+// HideDeckRequest is the body for POST /api/me/deck-hidden.
+type HideDeckRequest struct {
+	DeckID string `json:"deck_id"`
+	Hidden bool   `json:"hidden"`
 }
 
 type AnswerRequest struct {

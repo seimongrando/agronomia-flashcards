@@ -118,6 +118,7 @@ func main() {
 	mux.Handle("GET /api/stats", authOnly(http.HandlerFunc(studyH.Stats)))
 	mux.Handle("GET /api/progress", authOnly(http.HandlerFunc(studyH.Progress)))
 	mux.Handle("GET /api/study/offline", authOnly(http.HandlerFunc(studyH.OfflineBundle)))
+	mux.Handle("POST /api/me/deck-hidden", authOnly(http.HandlerFunc(studyH.HideDeck)))
 
 	// Push notifications (any authenticated user)
 	mux.HandleFunc("GET /api/push/key", pushH.PublicKey)

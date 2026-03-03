@@ -22,19 +22,19 @@ func NewMeHandler(users *repository.UserRepo) *MeHandler {
 func (h *MeHandler) Me(w http.ResponseWriter, r *http.Request) {
 	info, ok := middleware.GetAuthInfo(r.Context())
 	if !ok {
-		Error(w, http.StatusUnauthorized, "not authenticated")
+		Error(w, http.StatusUnauthorized, "não autenticado")
 		return
 	}
 
 	user, err := h.users.FindByID(r.Context(), info.UserID)
 	if err != nil {
-		Error(w, http.StatusNotFound, "user not found")
+		Error(w, http.StatusNotFound, "usuário não encontrado")
 		return
 	}
 
 	roles, err := h.users.RolesByUserID(r.Context(), info.UserID)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to load roles")
+		Error(w, http.StatusInternalServerError, "erro ao carregar perfil")
 		return
 	}
 

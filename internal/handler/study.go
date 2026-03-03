@@ -24,7 +24,7 @@ func NewStudyHandler(svc *service.StudyService) *StudyHandler {
 func (h *StudyHandler) ListDecks(w http.ResponseWriter, r *http.Request) {
 	info, ok := middleware.GetAuthInfo(r.Context())
 	if !ok {
-		Error(w, http.StatusUnauthorized, "not authenticated")
+		Error(w, http.StatusUnauthorized, "não autenticado")
 		return
 	}
 
@@ -38,7 +38,7 @@ func (h *StudyHandler) ListDecks(w http.ResponseWriter, r *http.Request) {
 	if c := r.URL.Query().Get("cursor"); c != "" {
 		cursorName, cursorID, err = pagination.DecodeNameIDCursor(c)
 		if err != nil {
-			Error(w, http.StatusBadRequest, "invalid cursor")
+			Error(w, http.StatusBadRequest, "cursor inválido")
 			return
 		}
 	}
@@ -56,7 +56,7 @@ func (h *StudyHandler) ListDecks(w http.ResponseWriter, r *http.Request) {
 
 	page, err := h.svc.ListDecks(r.Context(), info.UserID, cursorName, cursorID, limit, showAll)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to list decks")
+		Error(w, http.StatusInternalServerError, "erro ao listar decks")
 		return
 	}
 	JSON(w, http.StatusOK, page)
@@ -67,7 +67,7 @@ func (h *StudyHandler) ListDecks(w http.ResponseWriter, r *http.Request) {
 func (h *StudyHandler) ListDecksForManagement(w http.ResponseWriter, r *http.Request) {
 	info, ok := middleware.GetAuthInfo(r.Context())
 	if !ok {
-		Error(w, http.StatusUnauthorized, "not authenticated")
+		Error(w, http.StatusUnauthorized, "não autenticado")
 		return
 	}
 
@@ -81,14 +81,14 @@ func (h *StudyHandler) ListDecksForManagement(w http.ResponseWriter, r *http.Req
 	if c := r.URL.Query().Get("cursor"); c != "" {
 		cursorName, cursorID, err = pagination.DecodeNameIDCursor(c)
 		if err != nil {
-			Error(w, http.StatusBadRequest, "invalid cursor")
+			Error(w, http.StatusBadRequest, "cursor inválido")
 			return
 		}
 	}
 
 	page, err := h.svc.ListDecksForManagement(r.Context(), info.UserID, cursorName, cursorID, limit)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to list decks")
+		Error(w, http.StatusInternalServerError, "erro ao listar decks")
 		return
 	}
 	JSON(w, http.StatusOK, page)
@@ -97,7 +97,7 @@ func (h *StudyHandler) ListDecksForManagement(w http.ResponseWriter, r *http.Req
 func (h *StudyHandler) NextCard(w http.ResponseWriter, r *http.Request) {
 	info, ok := middleware.GetAuthInfo(r.Context())
 	if !ok {
-		Error(w, http.StatusUnauthorized, "not authenticated")
+		Error(w, http.StatusUnauthorized, "não autenticado")
 		return
 	}
 
@@ -112,19 +112,23 @@ func (h *StudyHandler) NextCard(w http.ResponseWriter, r *http.Request) {
 		mode = "due"
 	}
 	if mode != "due" && mode != "random" && mode != "wrong" {
-		Error(w, http.StatusBadRequest, "mode must be due, random, or wrong")
+		Error(w, http.StatusBadRequest, "modo inválido; use: due, random ou wrong")
 		return
 	}
 
 	topic := r.URL.Query().Get("topic") // optional; empty = all topics
 
 	card, err := h.svc.NextCard(r.Context(), info.UserID, deckID, mode, topic)
+	if errors.Is(err, service.ErrForbidden) {
+		Error(w, http.StatusForbidden, "acesso negado ao deck")
+		return
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to get next card")
+		Error(w, http.StatusInternalServerError, "erro ao buscar próximo card")
 		return
 	}
 	JSON(w, http.StatusOK, card)
@@ -133,13 +137,13 @@ func (h *StudyHandler) NextCard(w http.ResponseWriter, r *http.Request) {
 func (h *StudyHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 	info, ok := middleware.GetAuthInfo(r.Context())
 	if !ok {
-		Error(w, http.StatusUnauthorized, "not authenticated")
+		Error(w, http.StatusUnauthorized, "não autenticado")
 		return
 	}
 
 	var req model.AnswerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 
@@ -148,17 +152,21 @@ func (h *StudyHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Result < 0 || req.Result > 2 {
-		Error(w, http.StatusBadRequest, "result must be 0, 1, or 2")
+		Error(w, http.StatusBadRequest, "resultado inválido; use 0, 1 ou 2")
 		return
 	}
 
 	resp, err := h.svc.SubmitAnswer(r.Context(), info.UserID, req.CardID, req.Result)
+	if errors.Is(err, service.ErrForbidden) {
+		Error(w, http.StatusForbidden, "acesso negado ao deck")
+		return
+	}
 	if errors.Is(err, sql.ErrNoRows) {
-		Error(w, http.StatusNotFound, "card not found")
+		Error(w, http.StatusNotFound, "card não encontrado")
 		return
 	}
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to record answer")
+		Error(w, http.StatusInternalServerError, "erro ao registrar resposta")
 		return
 	}
 	JSON(w, http.StatusOK, resp)
@@ -167,20 +175,21 @@ func (h *StudyHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 func (h *StudyHandler) Progress(w http.ResponseWriter, r *http.Request) {
 	info, ok := middleware.GetAuthInfo(r.Context())
 	if !ok {
-		Error(w, http.StatusUnauthorized, "not authenticated")
+		Error(w, http.StatusUnauthorized, "não autenticado")
 		return
 	}
 	stats, err := h.svc.Progress(r.Context(), info.UserID)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to load progress")
+		Error(w, http.StatusInternalServerError, "erro ao carregar progresso")
 		return
 	}
 	JSON(w, http.StatusOK, stats)
 }
 
 func (h *StudyHandler) Topics(w http.ResponseWriter, r *http.Request) {
-	if _, ok := middleware.GetAuthInfo(r.Context()); !ok {
-		Error(w, http.StatusUnauthorized, "not authenticated")
+	info, ok := middleware.GetAuthInfo(r.Context())
+	if !ok {
+		Error(w, http.StatusUnauthorized, "não autenticado")
 		return
 	}
 	deckID := r.URL.Query().Get("deckId")
@@ -188,9 +197,13 @@ func (h *StudyHandler) Topics(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	topics, err := h.svc.Topics(r.Context(), deckID)
+	topics, err := h.svc.Topics(r.Context(), info.UserID, deckID)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to load topics")
+		if errors.Is(err, service.ErrForbidden) {
+			Error(w, http.StatusForbidden, "acesso negado ao deck")
+			return
+		}
+		Error(w, http.StatusInternalServerError, "erro ao carregar tópicos")
 		return
 	}
 	JSON(w, http.StatusOK, map[string][]string{"topics": topics})
@@ -199,7 +212,7 @@ func (h *StudyHandler) Topics(w http.ResponseWriter, r *http.Request) {
 func (h *StudyHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	info, ok := middleware.GetAuthInfo(r.Context())
 	if !ok {
-		Error(w, http.StatusUnauthorized, "not authenticated")
+		Error(w, http.StatusUnauthorized, "não autenticado")
 		return
 	}
 
@@ -211,7 +224,11 @@ func (h *StudyHandler) Stats(w http.ResponseWriter, r *http.Request) {
 
 	stats, err := h.svc.Stats(r.Context(), info.UserID, deckID)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to load stats")
+		if errors.Is(err, service.ErrForbidden) {
+			Error(w, http.StatusForbidden, "acesso negado ao deck")
+			return
+		}
+		Error(w, http.StatusInternalServerError, "erro ao carregar estatísticas")
 		return
 	}
 	JSON(w, http.StatusOK, stats)
@@ -223,7 +240,7 @@ func (h *StudyHandler) Stats(w http.ResponseWriter, r *http.Request) {
 func (h *StudyHandler) OfflineBundle(w http.ResponseWriter, r *http.Request) {
 	info, ok := middleware.GetAuthInfo(r.Context())
 	if !ok {
-		Error(w, http.StatusUnauthorized, "not authenticated")
+		Error(w, http.StatusUnauthorized, "não autenticado")
 		return
 	}
 	deckID := r.URL.Query().Get("deckId")
@@ -233,17 +250,49 @@ func (h *StudyHandler) OfflineBundle(w http.ResponseWriter, r *http.Request) {
 	}
 	bundle, err := h.svc.OfflineBundle(r.Context(), info.UserID, deckID)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to load offline bundle")
+		if errors.Is(err, service.ErrForbidden) {
+			Error(w, http.StatusForbidden, "acesso negado ao deck")
+			return
+		}
+		Error(w, http.StatusInternalServerError, "erro ao carregar dados offline")
 		return
 	}
 	JSON(w, http.StatusOK, bundle)
+}
+
+// HideDeck handles POST /api/me/deck-hidden.
+// Students can hide or unhide general decks from their home page.
+func (h *StudyHandler) HideDeck(w http.ResponseWriter, r *http.Request) {
+	info, ok := middleware.GetAuthInfo(r.Context())
+	if !ok {
+		Error(w, http.StatusUnauthorized, "não autenticado")
+		return
+	}
+	var req model.HideDeckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
+		return
+	}
+	if err := validate.UUID("deck_id", req.DeckID); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.svc.HideDeck(r.Context(), info.UserID, req.DeckID, req.Hidden); err != nil {
+		if errors.Is(err, service.ErrForbidden) {
+			Error(w, http.StatusForbidden, "acesso negado ao deck")
+			return
+		}
+		Error(w, http.StatusInternalServerError, "erro ao atualizar visibilidade do deck")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ProfessorStats returns aggregate content and engagement metrics (no PII).
 func (h *StudyHandler) ProfessorStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.svc.ProfessorStats(r.Context())
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to load professor stats")
+		Error(w, http.StatusInternalServerError, "erro ao carregar estatísticas do painel")
 		return
 	}
 	JSON(w, http.StatusOK, stats)

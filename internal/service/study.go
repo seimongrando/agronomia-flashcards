@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"webapp/internal/middleware"
 	"webapp/internal/model"
 	"webapp/internal/pagination"
 	"webapp/internal/repository"
@@ -111,6 +112,29 @@ func NewStudyService(study *repository.StudyRepo, cards *repository.CardRepo, re
 	return &StudyService{study: study, cards: cards, reviews: reviews}
 }
 
+// studyAuthFromCtx extracts auth info that was set by the auth middleware.
+func studyAuthFromCtx(ctx context.Context) model.AuthInfo {
+	info, _ := middleware.GetAuthInfo(ctx)
+	return info
+}
+
+// checkDeckAccess returns ErrForbidden if the calling user has no right to study
+// from the given deck. Staff (professor, admin) always pass.
+func (s *StudyService) checkDeckAccess(ctx context.Context, userID, deckID string) error {
+	auth := studyAuthFromCtx(ctx)
+	if auth.HasAnyRole("professor", "admin") {
+		return nil
+	}
+	ok, err := s.study.DeckAccessible(ctx, userID, deckID)
+	if err != nil {
+		return fmt.Errorf("check deck access: %w", err)
+	}
+	if !ok {
+		return ErrForbidden
+	}
+	return nil
+}
+
 // ListDecks returns a paginated page of decks for the home page.
 // Empty decks are always hidden. Inactive/expired decks are hidden for students
 // but visible for professors and admins (showAll=true).
@@ -127,6 +151,7 @@ func (s *StudyService) ListDecks(
 		ShowAll:         showAll,
 		HideEmpty:       true,     // home page never shows empty decks
 		ApplyVisibility: !showAll, // students see only their accessible decks
+		IncludeHidden:   true,     // return hidden decks so the client can show the hidden section
 		Limit:           limit + 1,
 	})
 	if err != nil {
@@ -202,6 +227,9 @@ func (s *StudyService) ListDecksForManagement(
 // Pass topic="" to study all topics.
 // Returns sql.ErrNoRows (wrapped) when no card is available.
 func (s *StudyService) NextCard(ctx context.Context, userID, deckID, mode, topic string) (model.Card, error) {
+	if err := s.checkDeckAccess(ctx, userID, deckID); err != nil {
+		return model.Card{}, err
+	}
 	switch mode {
 	case "random":
 		return s.study.NextRandomCard(ctx, deckID, topic)
@@ -222,14 +250,26 @@ func (s *StudyService) Progress(ctx context.Context, userID string) (model.Progr
 }
 
 // Topics returns distinct topic values for cards in a deck.
-func (s *StudyService) Topics(ctx context.Context, deckID string) ([]string, error) {
+func (s *StudyService) Topics(ctx context.Context, userID, deckID string) ([]string, error) {
+	if err := s.checkDeckAccess(ctx, userID, deckID); err != nil {
+		return nil, err
+	}
 	return s.study.DeckTopics(ctx, deckID)
 }
 
 func (s *StudyService) SubmitAnswer(ctx context.Context, userID, cardID string, result int) (model.AnswerResponse, error) {
-	// Fetch the current review state (2 queries total: find + upsert).
-	// The card existence check was removed — the FK constraint on reviews.card_id
-	// already enforces it; an invalid cardID produces a FK violation on the upsert.
+	// Verify the card exists and the user has access to its deck.
+	deckID, err := s.study.CardDeckID(ctx, cardID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return model.AnswerResponse{}, sql.ErrNoRows
+		}
+		return model.AnswerResponse{}, fmt.Errorf("lookup card deck: %w", err)
+	}
+	if err := s.checkDeckAccess(ctx, userID, deckID); err != nil {
+		return model.AnswerResponse{}, err
+	}
+
 	var streak, intervalDays int
 	var easeFactor float64
 	existing, err := s.reviews.FindByUserAndCard(ctx, userID, cardID)
@@ -268,6 +308,9 @@ func (s *StudyService) SubmitAnswer(ctx context.Context, userID, cardID string, 
 }
 
 func (s *StudyService) Stats(ctx context.Context, userID, deckID string) (model.StudyStats, error) {
+	if err := s.checkDeckAccess(ctx, userID, deckID); err != nil {
+		return model.StudyStats{}, err
+	}
 	return s.study.Stats(ctx, userID, deckID)
 }
 
@@ -278,5 +321,25 @@ func (s *StudyService) ProfessorStats(ctx context.Context) (model.ProfessorStats
 // OfflineBundle returns all cards for a deck plus the user's review state,
 // packaged for IndexedDB caching so the student can study without network.
 func (s *StudyService) OfflineBundle(ctx context.Context, userID, deckID string) (model.OfflineBundle, error) {
+	if err := s.checkDeckAccess(ctx, userID, deckID); err != nil {
+		return model.OfflineBundle{}, err
+	}
 	return s.study.GetOfflineBundle(ctx, userID, deckID)
+}
+
+// HideDeck sets or clears the hidden flag for a general deck on the student's home page.
+// Only general (non-private, non-class) decks may be hidden; staff bypass the check.
+func (s *StudyService) HideDeck(ctx context.Context, userID, deckID string, hide bool) error {
+	auth := studyAuthFromCtx(ctx)
+	if !auth.HasAnyRole("professor", "admin") {
+		// Validate that the deck exists and is a general deck.
+		ok, err := s.study.DeckAccessible(ctx, userID, deckID)
+		if err != nil {
+			return fmt.Errorf("check deck: %w", err)
+		}
+		if !ok {
+			return ErrForbidden
+		}
+	}
+	return s.study.HideDeck(ctx, userID, deckID, hide)
 }

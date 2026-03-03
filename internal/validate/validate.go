@@ -13,7 +13,7 @@ var uuidRe = regexp.MustCompile(
 
 func UUID(name, value string) error {
 	if !uuidRe.MatchString(value) {
-		return fmt.Errorf("%s must be a valid UUID", name)
+		return fmt.Errorf("%s deve ser um UUID válido", name)
 	}
 	return nil
 }
@@ -21,21 +21,21 @@ func UUID(name, value string) error {
 func StringField(name, value string, maxLen int) (string, error) {
 	v := strings.TrimSpace(value)
 	if utf8.RuneCountInString(v) > maxLen {
-		return "", fmt.Errorf("%s exceeds maximum length of %d characters", name, maxLen)
+		return "", fmt.Errorf("%s excede o limite máximo de %d caracteres", name, maxLen)
 	}
 	return v, nil
 }
 
 func Required(name, value string) error {
 	if strings.TrimSpace(value) == "" {
-		return fmt.Errorf("%s is required", name)
+		return fmt.Errorf("%s é obrigatório", name)
 	}
 	return nil
 }
 
 func MaxBytes(name string, data []byte, maxBytes int) error {
 	if len(data) > maxBytes {
-		return fmt.Errorf("%s exceeds maximum size of %d bytes", name, maxBytes)
+		return fmt.Errorf("%s excede o tamanho máximo de %d bytes", name, maxBytes)
 	}
 	return nil
 }

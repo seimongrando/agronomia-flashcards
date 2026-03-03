@@ -42,6 +42,7 @@
                 </div>
                 <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
                     <span id="deck-status-badge"></span>
+                    <button id="btn-publish-deck" class="btn btn-sm" style="display:none;align-items:center;gap:.35rem" aria-label="Publicar ou despublicar deck"></button>
                     <a id="btn-export-csv" href="#" download class="btn btn-outline btn-sm"
                        aria-label="Exportar cards como CSV"
                        style="display:flex;align-items:center;gap:.3rem">
@@ -70,12 +71,12 @@
                     <div class="field" style="flex:2;min-width:160px">
                         <label for="rename-name">Nome do deck *</label>
                         <input id="rename-name" type="text" class="input" maxlength="80"
-                               placeholder="Nome do deck (máx. 80 caracteres)" aria-required="true">
+                               placeholder="Nome do deck" data-counter aria-required="true">
                     </div>
                     <div class="field" style="flex:1;min-width:140px">
                         <label for="rename-subject">Matéria (opcional)</label>
                         <input id="rename-subject" type="text" class="input" maxlength="80"
-                               placeholder="Ex: Fitotecnia"
+                               placeholder="Ex: Fitotecnia" data-counter
                                list="rename-subject-suggestions">
                         <datalist id="rename-subject-suggestions"></datalist>
                     </div>
@@ -83,7 +84,7 @@
                 <div class="field">
                     <label for="rename-desc">Descrição (opcional)</label>
                     <input id="rename-desc" type="text" class="input" maxlength="200"
-                           placeholder="Breve descrição do conteúdo do deck">
+                           placeholder="Breve descrição do conteúdo do deck" data-counter>
                 </div>
 
                 <!-- Status & expiration -->
@@ -172,20 +173,20 @@
             </div>
             <div class="field">
                 <label>Pergunta *</label>
-                <textarea id="edit-question" class="textarea" maxlength="2000" rows="3"></textarea>
+                <textarea id="edit-question" class="textarea" maxlength="500" rows="3" data-counter></textarea>
             </div>
             <div class="field">
                 <label>Resposta *</label>
-                <textarea id="edit-answer" class="textarea" maxlength="5000" rows="4"></textarea>
+                <textarea id="edit-answer" class="textarea" maxlength="2000" rows="4" data-counter></textarea>
             </div>
             <div class="field-row">
                 <div class="field">
                     <label>Tópico</label>
-                    <input id="edit-topic" type="text" class="input" maxlength="200">
+                    <input id="edit-topic" type="text" class="input" maxlength="80" data-counter>
                 </div>
                 <div class="field">
                     <label>Fonte</label>
-                    <input id="edit-source" type="text" class="input" maxlength="500">
+                    <input id="edit-source" type="text" class="input" maxlength="120" data-counter>
                 </div>
             </div>
             <div id="edit-error" class="alert alert-error hidden"></div>

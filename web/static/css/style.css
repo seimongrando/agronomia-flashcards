@@ -150,24 +150,186 @@ a { color: inherit; }
     margin-left: auto;
 }
 
-/* ── Topbar responsive ────────────────────────────────────────────────────── */
-/* On narrow screens hide the nav links — they're already in the dropdown */
-@media (max-width: 700px) {
-    .topbar-nav { display: none; }
-    .brand-sub  { display: none; }
+/* ── Hamburger button — visible on all screen sizes ─────────────────────── */
+.hamburger-btn {
+    display: flex;       /* always shown — desktop nav replaced by hamburger panel */
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background .15s, border-color .15s;
 }
-/* On very small screens hide the user's first name too */
-@media (max-width: 400px) {
-    .user-trigger-name { display: none; }
+.hamburger-btn:hover { background: var(--bg); border-color: var(--gray-400); }
+
+/* Three-line icon */
+.hamburger-icon {
+    position: relative;
+    display: block;
+    width: 16px;
+    height: 2px;
+    background: var(--text);
+    border-radius: 2px;
+    transition: background .2s;
+}
+.hamburger-icon::before,
+.hamburger-icon::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    width: 16px;
+    height: 2px;
+    background: var(--text);
+    border-radius: 2px;
+    transition: transform .22s ease, top .22s ease, opacity .15s;
+}
+.hamburger-icon::before { top: -5px; }
+.hamburger-icon::after  { top:  5px; }
+
+/* Animated to ✕ when open */
+.hamburger-btn.is-open .hamburger-icon           { background: transparent; }
+.hamburger-btn.is-open .hamburger-icon::before   { top: 0; transform: rotate(45deg); }
+.hamburger-btn.is-open .hamburger-icon::after    { top: 0; transform: rotate(-45deg); }
+
+/* ── Mobile nav panel (right-side drawer) ─────────────────────────────────── */
+.mobile-nav {
+    display: none;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(280px, 85vw);
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    box-shadow: -6px 0 32px rgba(0,0,0,.18);
+    z-index: 960;
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    animation: mobileNavIn .22s cubic-bezier(.4,0,.2,1);
+}
+.mobile-nav.is-open { display: flex; }
+@keyframes mobileNavIn {
+    from { opacity: 0; transform: translateX(100%); }
+    to   { opacity: 1; transform: translateX(0); }
 }
 
-/* ── Topbar nav links ─────────────────────────────────────────────────────── */
-.topbar-nav {
+/* ── User header at top of drawer ── */
+.mobile-nav-header {
     display: flex;
     align-items: center;
-    gap: .15rem;
-    margin-right: .25rem;
+    gap: .75rem;
+    padding: 1.1rem 1rem .9rem;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
 }
+.mobile-nav-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.mobile-nav-avatar--initials {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: .9rem;
+    background: var(--primary);
+    color: #fff;
+}
+.mobile-nav-header__info { min-width: 0; }
+.mobile-nav-header__name {
+    font-weight: 700;
+    font-size: .95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mobile-nav-header__email {
+    font-size: .75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mobile-nav-header__roles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem;
+    margin-top: .3rem;
+}
+
+/* ── Divider ── */
+.mobile-nav-divider {
+    height: 1px;
+    background: var(--border);
+    margin: .3rem 0;
+    flex-shrink: 0;
+}
+
+/* ── Links / buttons inside the drawer ── */
+.mobile-nav-link {
+    all: unset;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    width: 100%;
+    padding: .85rem 1.2rem;
+    font-size: .93rem;
+    color: var(--text);
+    cursor: pointer;
+    transition: background .12s;
+    text-decoration: none;
+    border-radius: 0;
+}
+.mobile-nav-link:hover               { background: var(--bg); }
+.mobile-nav-link--active             { color: var(--primary); font-weight: 600; }
+.mobile-nav-link--active:hover       { background: var(--green-50, #f0fdf4); }
+.mobile-nav-link--logout             { color: var(--danger, #DC2626); }
+.mobile-nav-link--logout:hover       { background: #FEF2F2; }
+.mobile-nav-link--mode-exit          { color: #D97706; }
+.mobile-nav-link--mode-exit:hover    { background: #FFFBEB; }
+.mobile-nav-link--mode-enter         { color: var(--text-secondary); }
+.mobile-nav-link--mode-enter:hover   { background: var(--bg); }
+
+/* Semi-transparent backdrop (full screen, not just below topbar) */
+.mobile-nav-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    background: rgba(0,0,0,.35);
+}
+.mobile-nav-backdrop.is-open { display: block; }
+
+/* ── Topbar responsive ────────────────────────────────────────────────────── */
+/* On mobile: hide brand subtitle and center the brand like a native app */
+@media (max-width: 700px) {
+    .brand-sub     { display: none; }
+    .topbar .wrap  { position: relative; }
+    .topbar-brand  {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        max-width: calc(100% - 80px);
+    }
+    .topbar-right  { margin-left: auto; }
+}
+
+/* ── Topbar nav links — always hidden, navigation lives in the hamburger panel ── */
+.topbar-nav { display: none; }
+
+/* ── User dropdown — always hidden, user info lives in the hamburger panel ──── */
+.user-dropdown { display: none; }
+
 .nav-link {
     display: inline-flex;
     align-items: center;
@@ -574,7 +736,8 @@ a { color: inherit; }
     background: var(--green-100);
     color: var(--green-800);
 }
-.badge-ok {
+.badge-ok,
+.badge-green {
     background: #E8F5E9;
     color: var(--green-800);
     border: 1px solid #A5D6A7;
@@ -583,6 +746,11 @@ a { color: inherit; }
     background: #F3F4F6;
     color: #6B7280;
     border: 1px solid #D1D5DB;
+}
+.badge-draft {
+    background: #FFF8E1;
+    color: #92400E;
+    border: 1px solid #FCD34D;
 }
 .badge-expired {
     background: #FEF2F2;
@@ -730,7 +898,16 @@ a { color: inherit; }
     gap: .75rem;
 }
 
-/* ── Session progress bar ────────────────────────────────────────────────── */
+/* ── study-meta row (deck context + topic filter on same line) ─────────────── */
+.study-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    max-width: 500px;
+    width: 100%;
+    flex-shrink: 0;
+}
 /* Deck context label (above the card) */
 .deck-context {
     display: flex;
@@ -739,10 +916,8 @@ a { color: inherit; }
     font-size: .8rem;
     color: var(--text-secondary);
     font-weight: 500;
-    max-width: 500px;
-    width: 100%;
-    flex-shrink: 0;
-    margin-bottom: .1rem;
+    min-width: 0;
+    flex: 1;
 }
 .deck-ctx__icon {
     color: var(--primary);
@@ -1353,6 +1528,28 @@ a { color: inherit; }
 .csv-guide__note code {
     background: rgba(21,101,192,.12);
     padding: .1em .3em;
+}
+.csv-limits-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .8rem;
+    margin-top: .4rem;
+}
+.csv-limits-table th,
+.csv-limits-table td {
+    text-align: left;
+    padding: .3rem .5rem;
+    border: 1px solid var(--border);
+}
+.csv-limits-table thead th {
+    background: var(--bg);
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.csv-limits-table tbody tr:nth-child(even) { background: rgba(0,0,0,.025); }
     border-radius: 3px;
     font-family: ui-monospace, Menlo, monospace;
     font-size: .9em;
@@ -1496,34 +1693,87 @@ a { color: inherit; }
 }
 
 /* Topic filter (study page) */
+/* ── Topic filter — compact dropdown (study page) ─────────────────────────── */
 .topic-filter {
-    display: flex;
-    align-items: center;
-    gap: .4rem;
-    flex-wrap: wrap;
-    max-width: 500px;
-    width: 100%;
+    position: relative;  /* anchor for the dropdown */
     flex-shrink: 0;
 }
-.topic-chip {
-    padding: .25rem .65rem;
+
+/* Trigger button */
+.tf-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .38rem;
+    padding: .28rem .7rem;
     border-radius: 99px;
     border: 1.5px solid var(--border);
     background: var(--surface);
-    font-size: .75rem;
+    font-size: .78rem;
     font-weight: 500;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: border-color .15s, background .15s, color .15s;
-    white-space: nowrap;
     font-family: inherit;
-    line-height: 1.4;
+    transition: border-color .15s, color .15s, background .15s;
+    white-space: nowrap;
+    line-height: 1.5;
 }
-.topic-chip:hover { border-color: var(--primary); color: var(--primary); }
-.topic-chip.active {
+.tf-btn:hover,
+.tf-btn--open    { border-color: var(--primary); color: var(--primary); }
+/* When a topic is actively selected — filled pill */
+.tf-btn--filtered {
     background: var(--primary);
     border-color: var(--primary);
     color: #fff;
+}
+.tf-chevron {
+    transition: transform .18s;
+    flex-shrink: 0;
+}
+.tf-btn--open .tf-chevron { transform: rotate(180deg); }
+
+/* Dropdown panel */
+.tf-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 180px;
+    max-width: 260px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 6px 20px rgba(0,0,0,.10);
+    z-index: 200;
+    padding: .35rem;
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    animation: tfIn .14s ease;
+}
+@keyframes tfIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Option rows inside the dropdown */
+.tf-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: .5rem .75rem;
+    border-radius: calc(var(--radius) - 2px);
+    border: none;
+    background: none;
+    font-family: inherit;
+    font-size: .85rem;
+    color: var(--text);
+    cursor: pointer;
+    transition: background .12s;
+}
+.tf-option:hover       { background: var(--bg); }
+.tf-option--active {
+    background: var(--green-50, #f0fdf4);
+    color: var(--primary);
     font-weight: 600;
 }
 
@@ -1616,6 +1866,19 @@ a { color: inherit; }
 .field-hint { font-size: .75rem; color: var(--text-secondary); }
 .field-row  { display: flex; gap: .75rem; }
 .field-row .field { flex: 1; min-width: 0; }
+
+/* Character counter */
+.char-counter {
+    display: block;
+    font-size: .72rem;
+    color: var(--text-secondary);
+    text-align: right;
+    margin-top: .2rem;
+    line-height: 1;
+    transition: color .15s;
+}
+.char-counter--warn { color: var(--warning, #b45309); }
+.char-counter--over { color: var(--danger, #b91c1c); font-weight: 600; }
 
 /* ── Type picker (teach page) ────────────────────────────────────────────── */
 .type-picker {
@@ -2492,6 +2755,68 @@ a { color: inherit; }
     border-color: #90CAF9;
 }
 
+/* ── Deck hide button (student home page) ─────────────────────────────────── */
+
+.btn-deck-hide {
+    all: unset;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: .2rem;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    opacity: 0;
+    transition: opacity .15s, color .15s, background .15s;
+    flex-shrink: 0;
+}
+.deck-card:hover .btn-deck-hide,
+.deck-card:focus-within .btn-deck-hide {
+    opacity: 1;
+}
+.btn-deck-hide:hover {
+    color: var(--danger);
+    background: #FEF2F2;
+}
+.btn-deck-hide:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Hidden deck card in the "ocultos" section */
+.deck-card--hidden {
+    opacity: .75;
+    background: var(--bg);
+    border-style: dashed;
+}
+
+/* ── Quick publish button in the teach deck picker ─────────────────────────── */
+.btn-publish-quick {
+    all: unset;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: .72rem;
+    font-weight: 600;
+    padding: .2rem .55rem;
+    border-radius: 6px;
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    background: transparent;
+    transition: background .12s, color .12s;
+    white-space: nowrap;
+}
+.btn-publish-quick:hover:not(:disabled) {
+    background: var(--primary);
+    color: #fff;
+}
+.btn-publish-quick:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
 /* ── Student-mode toggle ─────────────────────────────────────────────────────── */
 
 /* Amber highlight on the topbar button when mode is active */
@@ -2816,11 +3141,16 @@ body:has(.student-mode-banner) main { padding-bottom: 3.5rem; }
     padding-left: .7rem;
 }
 
-/* Badge for inactive status */
+/* Badge for inactive / draft status */
 .badge-inactive {
     background: #f5f5f5;
     color: #9e9e9e;
     border: 1px solid #e0e0e0;
+}
+.badge-draft {
+    background: #FFF8E1;
+    color: #92400E;
+    border: 1px solid #FCD34D;
 }
 
 /* ── My Deck — student card management ──────────────────────────────────────── */

@@ -23,7 +23,7 @@ func NewAdminHandler(svc *service.AdminService) *AdminHandler {
 
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	if _, ok := middleware.GetAuthInfo(r.Context()); !ok {
-		Error(w, http.StatusUnauthorized, "not authenticated")
+		Error(w, http.StatusUnauthorized, "não autenticado")
 		return
 	}
 
@@ -44,14 +44,14 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	if c := r.URL.Query().Get("cursor"); c != "" {
 		cursorTS, cursorID, err = pagination.DecodeTimestampIDCursor(c)
 		if err != nil {
-			Error(w, http.StatusBadRequest, "invalid cursor")
+			Error(w, http.StatusBadRequest, "cursor inválido")
 			return
 		}
 	}
 
 	page, err := h.svc.ListUsers(r.Context(), q, cursorTS, cursorID, limit)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to list users")
+		Error(w, http.StatusInternalServerError, "erro ao listar usuários")
 		return
 	}
 	JSON(w, http.StatusOK, page)
@@ -60,7 +60,7 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandler) SetRoles(w http.ResponseWriter, r *http.Request) {
 	info, ok := middleware.GetAuthInfo(r.Context())
 	if !ok {
-		Error(w, http.StatusUnauthorized, "not authenticated")
+		Error(w, http.StatusUnauthorized, "não autenticado")
 		return
 	}
 
@@ -72,12 +72,12 @@ func (h *AdminHandler) SetRoles(w http.ResponseWriter, r *http.Request) {
 
 	var req model.SetRolesRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+		Error(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
 
 	if len(req.Add) == 0 && len(req.Remove) == 0 {
-		Error(w, http.StatusBadRequest, "at least one of add or remove is required")
+		Error(w, http.StatusBadRequest, "informe ao menos um papel para adicionar ou remover")
 		return
 	}
 
@@ -86,13 +86,13 @@ func (h *AdminHandler) SetRoles(w http.ResponseWriter, r *http.Request) {
 		msg := err.Error()
 		switch {
 		case strings.Contains(msg, "not found"):
-			Error(w, http.StatusNotFound, "user not found")
+			Error(w, http.StatusNotFound, "usuário não encontrado")
 		case strings.Contains(msg, "invalid role"):
 			Error(w, http.StatusBadRequest, msg)
 		case strings.Contains(msg, "must retain"):
 			Error(w, http.StatusConflict, msg)
 		default:
-			Error(w, http.StatusInternalServerError, "failed to update roles")
+			Error(w, http.StatusInternalServerError, "erro ao atualizar papéis")
 		}
 		return
 	}
