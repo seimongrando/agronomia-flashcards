@@ -404,7 +404,12 @@ func (h *ContentHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	opts := csvparse.ParseOptions{DefaultDeck: defaultDeckName}
+	opts := csvparse.ParseOptions{
+		DefaultDeck: defaultDeckName,
+		// When the caller selected a deck, force all rows into that deck
+		// regardless of what the CSV's "deck" column says.
+		ForceDeck: defaultDeckName != "",
+	}
 	parsed, err := csvparse.Parse(file, opts)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error())

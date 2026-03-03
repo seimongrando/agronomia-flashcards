@@ -143,7 +143,11 @@
     function wireSelectionMode() {
         if (btnSelectMode) {
             btnSelectMode.addEventListener("click", function () {
-                enterSelectionMode();
+                if (selectionMode) {
+                    exitSelectionMode();
+                } else {
+                    enterSelectionMode();
+                }
             });
         }
         if (btnBulkCancel) {
@@ -355,14 +359,28 @@
                   '</button>'
                 : '';
 
+            // Format creation date as DD/MM/AA
+            var createdStr = "";
+            if (d.created_at) {
+                var cd = new Date(d.created_at);
+                if (!isNaN(cd)) {
+                    createdStr = cd.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+                }
+            }
+
+            var countStr = (d.total_cards || 0) + ' carta' + (d.total_cards !== 1 ? 's' : '');
+
             return '<div class="deck-picker-card' + selectedCls + checkedCls + readOnlyCls + '" role="listitem" data-id="' + d.id + '" data-name="' + app.esc(d.name) + '" data-owned="' + (owned ? '1' : '0') + '" tabindex="0" aria-pressed="' + isSelected + '">' +
                 checkOverlay +
-                '<div class="deck-picker-card__head">' +
-                    '<span class="deck-picker-card__name">' + app.esc(d.name) + '</span>' +
-                    '<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">' + statusTag + ownerTag + publishBtn + '</div>' +
-                '</div>' +
+                '<div class="deck-picker-card__name">' + app.esc(d.name) + '</div>' +
                 (d.subject ? '<div class="deck-picker-card__sub">' + app.esc(d.subject) + '</div>' : '') +
-                '<div class="deck-picker-card__count">' + (d.total_cards || 0) + ' carta' + (d.total_cards !== 1 ? 's' : '') + '</div>' +
+                '<div class="deck-picker-card__tags">' + statusTag + ownerTag +
+                    (publishBtn ? '<span style="margin-left:auto">' + publishBtn + '</span>' : '') +
+                '</div>' +
+                '<div class="deck-picker-card__footer">' +
+                    '<span class="deck-picker-card__count">' + countStr + '</span>' +
+                    (createdStr ? '<span class="deck-picker-card__date" title="Criado em ' + createdStr + '">' + createdStr + '</span>' : '') +
+                '</div>' +
             '</div>';
         }).join('');
 

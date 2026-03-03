@@ -898,26 +898,25 @@ a { color: inherit; }
     gap: .75rem;
 }
 
-/* ── study-meta row (deck context + topic filter on same line) ─────────────── */
+/* ── study-meta row (deck context, full width) ─────────────────────────────── */
 .study-meta {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: .6rem;
     max-width: 500px;
     width: 100%;
     flex-shrink: 0;
 }
-/* Deck context label (above the card) */
+/* Deck context label (above the card) — takes full width now */
 .deck-context {
     display: flex;
     align-items: center;
     gap: .4rem;
-    font-size: .8rem;
+    font-size: .82rem;
     color: var(--text-secondary);
     font-weight: 500;
     min-width: 0;
     flex: 1;
+    overflow: hidden;
 }
 .deck-ctx__icon {
     color: var(--primary);
@@ -939,7 +938,7 @@ a { color: inherit; }
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 18ch;
+    max-width: 32ch;
 }
 .deck-ctx__sep {
     color: var(--border);
@@ -2263,19 +2262,22 @@ a { color: inherit; }
 /* ── Deck picker grid (teach.html) ──────────────────────────────────────── */
 .deck-picker-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: .6rem;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: .75rem;
     margin-top: .1rem;
 }
 
 .deck-picker-card {
+    position: relative;
     background: var(--surface);
     border: 1.5px solid var(--gray-200);
     border-radius: 8px;
-    padding: .75rem .9rem;
+    padding: .9rem 1.1rem;
     cursor: pointer;
     transition: border-color .15s, box-shadow .15s;
     user-select: none;
+    display: flex;
+    flex-direction: column;
 }
 .deck-picker-card:hover {
     border-color: var(--green-500);
@@ -2295,34 +2297,53 @@ a { color: inherit; }
     box-shadow: none;
 }
 
-.deck-picker-card__head {
+/* Deck name — full width, first line, prominent */
+.deck-picker-card__name {
+    font-weight: 700;
+    font-size: .95rem;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: .2rem;
+    line-height: 1.35;
+}
+/* Subject line (discipline) */
+.deck-picker-card__sub {
+    font-size: .72rem;
+    color: var(--text-secondary);
+    margin-bottom: .35rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* Badge row: status + owner + publish toggle */
+.deck-picker-card__tags {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .3rem;
+    margin-bottom: .5rem;
+}
+/* Footer: card count (left) + creation date (right) */
+.deck-picker-card__footer {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: .4rem;
-    margin-bottom: .25rem;
-}
-.deck-picker-card__name {
-    font-weight: 600;
-    font-size: .9rem;
-    color: var(--text-primary);
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.deck-picker-card__sub {
-    font-size: .75rem;
-    color: var(--text-secondary);
-    margin-bottom: .2rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    border-top: 1px solid var(--gray-100);
+    padding-top: .4rem;
+    margin-top: .05rem;
 }
 .deck-picker-card__count {
     font-size: .75rem;
     color: var(--text-secondary);
-    margin-top: .35rem;
+}
+.deck-picker-card__date {
+    font-size: .7rem;
+    color: var(--text-secondary);
+    opacity: .7;
+    white-space: nowrap;
 }
 
 /* Inline text-button (no border/bg) */
@@ -2369,26 +2390,15 @@ a { color: inherit; }
     flex-wrap: wrap;
     gap: .75rem;
     padding: .85rem 1.5rem;
-    background: #1e1e2e;
-    color: #fff;
-    box-shadow: 0 -4px 20px rgba(0,0,0,.3);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 -4px 20px rgba(0,0,0,.12);
     border-top: 2px solid #b71c1c;
     animation: slideUp .2s ease;
 }
 @keyframes slideUp {
     from { transform: translateY(100%); }
     to   { transform: translateY(0); }
-}
-/* Override default btn colors so they're visible on the dark bar */
-.bulk-action-bar .btn {
-    color: #fff;
-    border-color: rgba(255,255,255,.35);
-    background: transparent;
-}
-.bulk-action-bar .btn:hover:not(:disabled) {
-    background: rgba(255,255,255,.12);
-    border-color: rgba(255,255,255,.65);
-    color: #fff;
 }
 .bulk-action-bar .btn:disabled {
     opacity: .4;
@@ -2407,7 +2417,7 @@ a { color: inherit; }
     font-weight: 600;
     font-size: .95rem;
     white-space: nowrap;
-    color: #fff;
+    color: var(--text);
 }
 
 /* Deck card selection state */
@@ -2436,10 +2446,6 @@ a { color: inherit; }
     background: #b71c1c;
     color: #fff;
 }
-.deck-picker-card {
-    position: relative; /* needed for absolute checkbox overlay */
-}
-
 /* Danger outline button */
 .btn-danger-outline {
     border-color: #b71c1c !important;

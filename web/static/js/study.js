@@ -10,7 +10,7 @@
     /* ── Stable DOM refs (never replaced) ─────────────────────────────────── */
     var counterEl     = document.getElementById("study-counter");
     var deckCtxEl     = document.getElementById("deck-context");
-    var topicFilterEl = document.getElementById("topic-filter");
+    // topic-filter element removed; topics are no longer displayed on the study page
     var spinnerEl     = document.getElementById("study-spinner");
     var doneEl        = document.getElementById("study-done");
     var cardAreaEl    = document.getElementById("card-area");
@@ -84,7 +84,6 @@
             if (!user) { window.location.href = "/"; return; }
             app.renderTopbar(user, { backHref: "/", noNav: true });
             renderDeckContext();
-            loadTopics();
             loadStats();
             loadNext();
 
@@ -360,110 +359,6 @@
             '<span class="deck-ctx__mode">' + app.esc(label) + '</span>';
     }
 
-    /* ════════════════════════════════════════════════════════════════════════
-       TOPIC FILTER
-    ════════════════════════════════════════════════════════════════════════ */
-    function loadTopics() {
-        if (!topicFilterEl) return;
-        api.get("/api/study/topics?deckId=" + deckId)
-            .then(function (res) { return res.ok ? res.json() : null; })
-            .then(function (data) {
-                var topics = (data && data.topics) ? data.topics : [];
-                if (topics.length < 2) return; // not worth showing if ≤ 1 topic
-                renderTopicFilter(topics);
-            })
-            .catch(function () { /* non-critical */ });
-    }
-
-    function renderTopicFilter(topics) {
-        // Render as a single compact button that expands a dropdown panel.
-        // Zero visual noise when all topics are selected; only appears when relevant.
-        var html =
-            '<button class="tf-btn" id="tf-btn" aria-haspopup="listbox" aria-expanded="false">' +
-            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-            '<line x1="4" y1="6"  x2="20" y2="6"  stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
-            '<line x1="7" y1="12" x2="17" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
-            '<line x1="10" y1="18" x2="14" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
-            '</svg>' +
-            '<span id="tf-label">Tópicos</span>' +
-            '<svg class="tf-chevron" width="10" height="10" viewBox="0 0 12 12" aria-hidden="true">' +
-            '<path fill="currentColor" d="M6 8L1 3h10z"/>' +
-            '</svg>' +
-            '</button>' +
-            '<div class="tf-dropdown hidden" id="tf-dropdown" role="listbox" aria-label="Filtrar por tópico">' +
-            '<button class="tf-option tf-option--active" role="option" aria-selected="true" data-topic="">Todos os tópicos</button>';
-
-        for (var i = 0; i < topics.length; i++) {
-            html += '<button class="tf-option" role="option" aria-selected="false" data-topic="' +
-                app.esc(topics[i]) + '">' + app.esc(topics[i]) + '</button>';
-        }
-        html += '</div>';
-
-        topicFilterEl.innerHTML = html;
-        topicFilterEl.classList.remove("hidden");
-
-        var tfBtn      = document.getElementById("tf-btn");
-        var tfDropdown = document.getElementById("tf-dropdown");
-        var tfLabel    = document.getElementById("tf-label");
-
-        function openDropdown() {
-            tfDropdown.classList.remove("hidden");
-            tfBtn.setAttribute("aria-expanded", "true");
-            tfBtn.classList.add("tf-btn--open");
-        }
-        function closeDropdown() {
-            tfDropdown.classList.add("hidden");
-            tfBtn.setAttribute("aria-expanded", "false");
-            tfBtn.classList.remove("tf-btn--open");
-        }
-
-        tfBtn.addEventListener("click", function (e) {
-            e.stopPropagation();
-            tfDropdown.classList.contains("hidden") ? openDropdown() : closeDropdown();
-        });
-
-        document.addEventListener("click", function () { closeDropdown(); });
-        tfDropdown.addEventListener("click", function (e) { e.stopPropagation(); });
-
-        tfDropdown.addEventListener("click", function (e) {
-            var opt = e.target.closest(".tf-option");
-            if (!opt) return;
-
-            var opts = tfDropdown.querySelectorAll(".tf-option");
-            for (var i = 0; i < opts.length; i++) {
-                opts[i].classList.remove("tf-option--active");
-                opts[i].setAttribute("aria-selected", "false");
-            }
-            opt.classList.add("tf-option--active");
-            opt.setAttribute("aria-selected", "true");
-
-            activeTopic = opt.getAttribute("data-topic") || "";
-
-            // Update button label
-            if (tfLabel) {
-                tfLabel.textContent = activeTopic || "Tópicos";
-            }
-            // Mark button as filtered
-            tfBtn.classList.toggle("tf-btn--filtered", activeTopic !== "");
-
-            closeDropdown();
-
-            // Reset session for new topic
-            sessionCount   = 0;
-            sessionCorrect = 0;
-            sessionHard    = 0;
-            sessionWrong   = 0;
-            currentCard = null;
-            flipped = false;
-            flashcardEl.classList.remove("is-flipped");
-            setAnswerButtons(false);
-            cardAreaEl.classList.add("hidden");
-            doneEl.classList.add("hidden");
-            spinnerEl.classList.remove("hidden");
-            loadStats();
-            loadNext();
-        });
-    }
 
     /* ════════════════════════════════════════════════════════════════════════
        STATS + PROGRESS

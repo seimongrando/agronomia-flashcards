@@ -223,7 +223,10 @@ func (s *ContentService) EstimateDryRun(ctx context.Context, parsed *csvparse.Re
 		var deckID string
 
 		if deckKey == "" {
-			// Single-deck mode: the deck is already known by ID.
+			// No "deck" column in CSV — deck is already known by ID.
+			deckID = defaultDeckID
+		} else if defaultDeckID != "" {
+			// Caller selected a deck (ForceDeck mode) — all rows belong to it.
 			deckID = defaultDeckID
 		} else {
 			deck, findErr := s.decks.FindByName(ctx, deckKey)
@@ -274,11 +277,13 @@ func (s *ContentService) ImportCSV(ctx context.Context, userID, filename string,
 	var imported, updated, invalid, decksCreated int
 	deckCache := make(map[string]model.Deck) // deckName → Deck
 
-	// If single-deck mode, pre-populate cache with the known deck so we don't
-	// attempt an upsert for every row.
+	// When a deck was explicitly selected, pre-populate the cache so every row
+	// that references it (by name or empty key) hits the cache, avoiding
+	// unnecessary FindOrCreateByName calls that could create a duplicate deck.
 	if defaultDeckID != "" {
 		if dk, fetchErr := s.decks.FindByID(ctx, defaultDeckID); fetchErr == nil {
-			deckCache[""] = dk
+			deckCache[""] = dk      // used when CSV has no "deck" column
+			deckCache[dk.Name] = dk // used when ForceDeck overrides the column
 		}
 	}
 

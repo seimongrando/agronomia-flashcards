@@ -19,9 +19,13 @@ const (
 // ParseOptions controls optional parser behaviour.
 type ParseOptions struct {
 	// DefaultDeck is used when the CSV has no "deck" column (single-deck mode).
-	// If the CSV contains a "deck" column this field is ignored.
 	// If the CSV has no "deck" column and DefaultDeck is empty, Parse returns an error.
 	DefaultDeck string
+
+	// ForceDeck, when true, overrides the "deck" column in every row with
+	// DefaultDeck. Use this when the caller has explicitly selected a deck and
+	// all cards must be imported into that deck regardless of what the CSV says.
+	ForceDeck bool
 }
 
 // Row represents one data row after parsing and validation.
@@ -157,9 +161,13 @@ func validateRow(record []string, colIndex map[string]int, line int, opts ParseO
 	_, hasDeckCol := colIndex["deck"]
 
 	var deckVal string
-	if hasDeckCol {
+	switch {
+	case opts.ForceDeck:
+		// Caller has explicitly selected a target deck; ignore the CSV column.
+		deckVal = opts.DefaultDeck
+	case hasDeckCol:
 		deckVal = normalizeSpaces(colVal(record, colIndex, "deck"))
-	} else {
+	default:
 		deckVal = opts.DefaultDeck
 	}
 
