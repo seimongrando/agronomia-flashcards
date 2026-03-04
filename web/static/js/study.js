@@ -56,16 +56,36 @@
     var dragX  = 0, dragY  = 0;
 
     /* ─── Offline indicator ─────────────────────────────────────────────────── */
-    var offlineBanner = null;
+    var offlineBanner      = null;
+    var offlineBannerTimer = null;
+
     function setOfflineBanner(offline) {
         if (offline && !offlineBanner) {
             offlineBanner = document.createElement("div");
             offlineBanner.className = "offline-banner";
             offlineBanner.setAttribute("role", "status");
-            offlineBanner.textContent =
-                "Modo offline — suas respostas serão salvas e enviadas ao reconectar.";
-            document.body.insertBefore(offlineBanner, document.body.firstChild);
+
+            var msg = document.createElement("span");
+            msg.textContent = "Modo offline — suas respostas serão salvas e enviadas ao reconectar.";
+
+            var closeBtn = document.createElement("button");
+            closeBtn.className = "offline-banner__close";
+            closeBtn.setAttribute("aria-label", "Fechar aviso");
+            closeBtn.innerHTML =
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+                '<path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>' +
+                '</svg>';
+            closeBtn.addEventListener("click", function () { setOfflineBanner(false); });
+
+            offlineBanner.appendChild(msg);
+            offlineBanner.appendChild(closeBtn);
+            document.body.appendChild(offlineBanner);
+
+            // Auto-dismiss after 8 s so it never permanently blocks the UI.
+            offlineBannerTimer = setTimeout(function () { setOfflineBanner(false); }, 8000);
+
         } else if (!offline && offlineBanner) {
+            if (offlineBannerTimer) { clearTimeout(offlineBannerTimer); offlineBannerTimer = null; }
             offlineBanner.remove();
             offlineBanner = null;
         }

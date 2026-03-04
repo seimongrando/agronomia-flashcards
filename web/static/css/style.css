@@ -3229,18 +3229,39 @@ body:has(.student-mode-banner) main { padding-bottom: 3.5rem; }
 /* ── Offline banner ───────────────────────────────────────────────────────── */
 .offline-banner {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
+    bottom: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 1200;
     background: #b45309;
     color: #fff;
-    text-align: center;
     font-size: .82rem;
     font-weight: 500;
-    padding: .4rem 1rem;
-    letter-spacing: .01em;
+    padding: .45rem 1rem .45rem 1.25rem;
+    border-radius: 100px;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    max-width: calc(100% - 2rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 4px 18px rgba(0,0,0,.28);
+    animation: slideUp .25s ease;
 }
+.offline-banner__close {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    opacity: .75;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+.offline-banner__close:hover { opacity: 1; }
 
 /* ── Notification permission prompt ──────────────────────────────────────── */
 .notif-prompt {

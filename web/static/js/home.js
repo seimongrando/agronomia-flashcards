@@ -70,6 +70,20 @@
         }).catch(function () { /* silently ignore */ });
     }
 
+    // Pre-syncs all visible decks to IndexedDB so the student can study
+    // offline without manually opening each deck first.
+    // Runs sequentially with a short gap to be polite to the server.
+    function syncDecksInBackground(decks) {
+        if (!window.offlineStudy || !navigator.onLine || !decks || !decks.length) return;
+        var ids = decks.map(function (d) { return d.id; });
+        (function next() {
+            if (!ids.length) return;
+            offlineStudy.syncDeck(ids.shift()).catch(function () {}).then(function () {
+                setTimeout(next, 400); // 400 ms between syncs
+            });
+        }());
+    }
+
     function loadDecks() {
         api.get("/api/decks").then(function (res) {
             if (!res.ok) throw new Error("failed");
@@ -89,6 +103,9 @@
             }
             renderDecks(allDecks);
             renderHiddenSection(hiddenDecks);
+            // Background pre-sync: silently cache all visible decks to IndexedDB so
+            // the student can study offline without having to open each deck first.
+            syncDecksInBackground(allDecks);
         }).catch(function () {
             gridEl.innerHTML = '<p style="color:var(--danger);padding:1rem">Erro ao carregar decks.</p>';
         });
