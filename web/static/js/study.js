@@ -103,8 +103,10 @@
             showDone("Deck não encontrado", "Volte e escolha um deck.", true);
             return;
         }
-        app.checkAuth().then(function (user) {
-            if (!user) { window.location.href = "/"; return; }
+
+        // Sets up the study UI after authentication (or offline bypass).
+        // `user` may be null when offline with a pre-cached deck.
+        function startStudy(user) {
             app.renderTopbar(user, { backHref: "/", noNav: true });
             renderDeckContext();
             loadStats();
@@ -114,6 +116,42 @@
             if (window.offlineStudy && navigator.onLine) {
                 offlineStudy.syncDeck(deckId).catch(function () { /* non-critical */ });
             }
+
+            // Show offline banner if we started without a live session.
+            if (!user || !navigator.onLine) {
+                setOfflineBanner(true);
+            }
+        }
+
+        // Attempt to reach /api/me.  Returns null on both auth failure AND
+        // network failure (offline), so we must distinguish the two cases.
+        app.checkAuth().then(function (user) {
+            if (user) {
+                startStudy(user);
+                return;
+            }
+
+            // Auth returned null.  If the device is offline, try IndexedDB.
+            if (!navigator.onLine && window.offlineStudy) {
+                offlineStudy.isDeckCached(deckId)
+                    .then(function (cached) {
+                        if (cached) {
+                            startStudy(null); // offline mode — no user object
+                        } else {
+                            showDone(
+                                "Sem conexão",
+                                "Você está offline e este deck ainda não foi sincronizado. " +
+                                "Conecte-se à internet e abra o deck uma vez para ativar o modo offline.",
+                                true
+                            );
+                        }
+                    })
+                    .catch(function () { window.location.href = "/"; });
+                return;
+            }
+
+            // Online but auth failed (expired session) — send to login.
+            window.location.href = "/";
         });
 
         setupFlip();
@@ -397,7 +435,7 @@
             // Refresh display if a card is already showing
             if (currentCard) updateCardPosition();
             updateProgressBar();
-        });
+        }).catch(function () { /* offline — continue without stats */ });
     }
 
     /* Sets the topbar centre to "Carta X de Y" — the card the student is NOW reading. */

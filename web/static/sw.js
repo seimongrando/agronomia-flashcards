@@ -9,12 +9,37 @@
  */
 "use strict";
 
-var CACHE     = "agro-v4";
+var CACHE     = "agro-v5";
 var SYNC_TAG  = "agro-answer-queue";
 
-// ── Install: força ativação imediata sem aguardar abas existentes ─────────────
-self.addEventListener("install", function () {
-    self.skipWaiting();
+// Critical files that must be available for offline use.
+// Cached eagerly on install so the study page works even on first offline visit.
+var SHELL_FILES = [
+    "/",
+    "/study.html",
+    "/static/css/style.css",
+    "/static/js/app.js",
+    "/static/js/offline.js",
+    "/static/js/study.js",
+    "/static/manifest.json",
+    "/static/icons/icon-192.png",
+    "/static/icons/icon-512.png"
+];
+
+// ── Install: pré-carrega o app shell e ativa imediatamente ───────────────────
+self.addEventListener("install", function (e) {
+    e.waitUntil(
+        caches.open(CACHE).then(function (cache) {
+            // Individual adds so a single missing icon doesn't abort the install.
+            return Promise.all(
+                SHELL_FILES.map(function (url) {
+                    return cache.add(url).catch(function (err) {
+                        console.warn("[SW] pré-cache falhou para " + url + ":", err);
+                    });
+                })
+            );
+        }).then(function () { return self.skipWaiting(); })
+    );
 });
 
 // ── Activate: limpa caches antigos ────────────────────────────────────────────
