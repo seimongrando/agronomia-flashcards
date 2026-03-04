@@ -259,7 +259,8 @@ func (r *StudyRepo) NextDueCard(ctx context.Context, userID, deckID, topic strin
 
 // NextRandomCard returns a random card from the deck.
 // Pass topic="" to study all topics.
-func (r *StudyRepo) NextRandomCard(ctx context.Context, deckID, topic string) (model.Card, error) {
+// Pass excludeIDs to skip cards already seen in the current session.
+func (r *StudyRepo) NextRandomCard(ctx context.Context, deckID, topic string, excludeIDs []string) (model.Card, error) {
 	var sb strings.Builder
 	var args []any
 	nextArg := func(v any) string { args = append(args, v); return fmt.Sprintf("$%d", len(args)) }
@@ -268,6 +269,13 @@ func (r *StudyRepo) NextRandomCard(ctx context.Context, deckID, topic string) (m
 		FROM cards WHERE deck_id = ` + nextArg(deckID))
 	if topic != "" {
 		sb.WriteString(` AND topic = ` + nextArg(topic))
+	}
+	if len(excludeIDs) > 0 {
+		placeholders := make([]string, len(excludeIDs))
+		for i, id := range excludeIDs {
+			placeholders[i] = nextArg(id)
+		}
+		sb.WriteString(` AND id NOT IN (` + strings.Join(placeholders, ",") + `)`)
 	}
 	sb.WriteString(` ORDER BY random() LIMIT 1`)
 

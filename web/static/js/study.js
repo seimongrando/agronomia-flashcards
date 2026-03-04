@@ -45,6 +45,7 @@
     var sessionHard    = 0;    // result = 1
     var sessionWrong   = 0;    // result = 0
     var activeTopic   = "";    // "" = all topics
+    var randomSeenIDs = [];    // card IDs already shown this random session (avoids repeats)
 
     /* ── Swipe / drag state ─────────────────────────────────────────────────  */
     var SWIPE_THRESHOLD = 72;
@@ -469,9 +470,19 @@
 
         var nextUrl = "/api/study/next?deckId=" + deckId + "&mode=" + mode;
         if (activeTopic) nextUrl += "&topic=" + encodeURIComponent(activeTopic);
+        // In random mode pass the seen IDs so the backend never repeats a card.
+        if (mode === "random" && randomSeenIDs.length > 0) {
+            nextUrl += "&exclude=" + randomSeenIDs.join(",");
+        }
         api.get(nextUrl)
             .then(function (res) {
                 if (res.status === 204) {
+                    if (mode === "random" && randomSeenIDs.length > 0) {
+                        // All cards in the deck have been shown — start a new round.
+                        randomSeenIDs = [];
+                        showRoundComplete();
+                        return null;
+                    }
                     var msg = mode === "due"
                         ? "Você revisou todas as cartas de hoje! Volte amanhã para continuar."
                         : "Nenhuma carta disponível neste modo.";
@@ -483,6 +494,10 @@
             })
             .then(function (card) {
                 if (!card) return;
+                // Track this card for the current random session.
+                if (mode === "random") {
+                    randomSeenIDs.push(card.id);
+                }
                 currentCard = card;
                 renderCard();
             })
@@ -529,13 +544,10 @@
         // Apply type theme to card scene so CSS cascade can color both faces
         cardSceneEl.setAttribute("data-type", type);
 
-        // Badge HTML (shown on front header + back header)
+        // Badge HTML: only card type — topic removed to keep the study view clean
         var badgeHTML =
             '<span class="badge badge-type" data-type="' + app.esc(type) + '">' +
             app.esc(currentCard.type) + '</span>';
-        if (currentCard.topic) {
-            badgeHTML += '<span class="badge badge-topic">' + app.esc(currentCard.topic) + '</span>';
-        }
 
         // Front face
         headFront.innerHTML = badgeHTML;
@@ -563,6 +575,37 @@
     /* ════════════════════════════════════════════════════════════════════════
        DONE / ERROR STATE
     ════════════════════════════════════════════════════════════════════════ */
+    // Called when random mode exhausts all cards in the deck (one full round).
+    // Shows a brief "round complete" toast and immediately starts the next round.
+    function showRoundComplete() {
+        spinnerEl.classList.add("hidden");
+        cardAreaEl.classList.add("hidden");
+        answerBar.classList.add("hidden");
+        if (answerHelp) answerHelp.classList.add("hidden");
+
+        doneEl.innerHTML =
+            '<div style="text-align:center;padding:2rem 1rem">' +
+            '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" style="color:var(--green-800);margin-bottom:.75rem">' +
+            '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+            '<path d="M22 4L12 14.01l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+            '</svg>' +
+            '<h2 style="font-size:1.2rem;font-weight:700;margin:0 0 .4rem">Rodada concluída!</h2>' +
+            '<p style="color:var(--text-secondary);margin:0 0 1.5rem;font-size:.95rem">' +
+            'Você viu todas as cartas do deck. Começando nova rodada…' +
+            '</p>' +
+            '<button id="btn-next-round" class="btn btn-primary">Próxima rodada</button>' +
+            '</div>';
+        doneEl.classList.remove("hidden");
+
+        var btnNextRound = document.getElementById("btn-next-round");
+        if (btnNextRound) {
+            btnNextRound.addEventListener("click", function () {
+                doneEl.classList.add("hidden");
+                loadNext();
+            });
+        }
+    }
+
     function showDone(title, message, isError) {
         spinnerEl.classList.add("hidden");
         cardAreaEl.classList.add("hidden");

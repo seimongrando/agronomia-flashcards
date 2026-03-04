@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"webapp/internal/middleware"
 	"webapp/internal/model"
@@ -118,7 +119,18 @@ func (h *StudyHandler) NextCard(w http.ResponseWriter, r *http.Request) {
 
 	topic := r.URL.Query().Get("topic") // optional; empty = all topics
 
-	card, err := h.svc.NextCard(r.Context(), info.UserID, deckID, mode, topic)
+	// Optional comma-separated card IDs to exclude (used by random mode to avoid repeats).
+	var excludeIDs []string
+	if raw := r.URL.Query().Get("exclude"); raw != "" {
+		for _, id := range strings.Split(raw, ",") {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				excludeIDs = append(excludeIDs, id)
+			}
+		}
+	}
+
+	card, err := h.svc.NextCard(r.Context(), info.UserID, deckID, mode, topic, excludeIDs)
 	if errors.Is(err, service.ErrForbidden) {
 		Error(w, http.StatusForbidden, "acesso negado ao deck")
 		return
