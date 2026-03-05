@@ -225,7 +225,7 @@ func (s *StudyService) ListDecksForManagement(
 
 // NextCard returns the next card to study based on the selected mode.
 // Pass topic="" to study all topics.
-// Pass excludeIDs (random mode only) to skip cards already seen this session.
+// Pass excludeIDs to skip cards already seen this session (applied to all modes).
 // Returns sql.ErrNoRows (wrapped) when no card is available.
 func (s *StudyService) NextCard(ctx context.Context, userID, deckID, mode, topic string, excludeIDs []string) (model.Card, error) {
 	if err := s.checkDeckAccess(ctx, userID, deckID); err != nil {
@@ -235,13 +235,13 @@ func (s *StudyService) NextCard(ctx context.Context, userID, deckID, mode, topic
 	case "random":
 		return s.study.NextRandomCard(ctx, deckID, topic, excludeIDs)
 	case "wrong":
-		card, err := s.study.NextWrongCard(ctx, userID, deckID, topic)
+		card, err := s.study.NextWrongCard(ctx, userID, deckID, topic, excludeIDs)
 		if errors.Is(err, sql.ErrNoRows) {
-			return s.study.NextDueCard(ctx, userID, deckID, topic)
+			return s.study.NextDueCard(ctx, userID, deckID, topic, excludeIDs)
 		}
 		return card, err
 	default:
-		return s.study.NextDueCard(ctx, userID, deckID, topic)
+		return s.study.NextDueCard(ctx, userID, deckID, topic, excludeIDs)
 	}
 }
 

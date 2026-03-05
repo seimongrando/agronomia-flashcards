@@ -44,8 +44,9 @@
     var sessionCorrect = 0;    // result = 2
     var sessionHard    = 0;    // result = 1
     var sessionWrong   = 0;    // result = 0
-    var activeTopic   = "";    // "" = all topics
-    var randomSeenIDs = [];    // card IDs already shown this random session (avoids repeats)
+    var activeTopic    = "";   // "" = all topics
+    var sessionSeenIDs = [];   // card IDs answered this session — excluded from all subsequent requests
+    var initialDue     = null; // due_now captured once at session start, used as the "due" mode total
 
     /* ── Swipe / drag state ─────────────────────────────────────────────────  */
     var SWIPE_THRESHOLD = 72;
@@ -452,6 +453,8 @@
             if (!stats) return;
             remaining  = stats.due_now;
             totalCards = stats.total_cards || null;
+            // Capture the initial due count once (used as fixed total for "due" mode).
+            if (initialDue === null) initialDue = stats.due_now;
             // Refresh display if a card is already showing
             if (currentCard) updateCardPosition();
             updateProgressBar();
@@ -488,9 +491,9 @@
     /* Returns the session cap depending on mode. */
     function resolveTotal() {
         if (mode === "due") {
-            return (remaining !== null && totalCards !== null)
-                ? remaining + sessionCount   // initial due count
-                : null;
+            // Use the fixed initial due count captured at session start so that
+            // the "Carta X de Y" counter never grows even if extra cards appear.
+            return initialDue !== null ? initialDue : null;
         }
         return totalCards;
     }
@@ -528,16 +531,16 @@
 
         var nextUrl = "/api/study/next?deckId=" + deckId + "&mode=" + mode;
         if (activeTopic) nextUrl += "&topic=" + encodeURIComponent(activeTopic);
-        // In random mode pass the seen IDs so the backend never repeats a card.
-        if (mode === "random" && randomSeenIDs.length > 0) {
-            nextUrl += "&exclude=" + randomSeenIDs.join(",");
+        // Always send already-seen IDs so the backend never repeats a card in any mode.
+        if (sessionSeenIDs.length > 0) {
+            nextUrl += "&exclude=" + sessionSeenIDs.join(",");
         }
         api.get(nextUrl)
             .then(function (res) {
                 if (res.status === 204) {
-                    if (mode === "random" && randomSeenIDs.length > 0) {
+                    if (mode === "random" && sessionSeenIDs.length > 0) {
                         // All cards in the deck have been shown — start a new round.
-                        randomSeenIDs = [];
+                        sessionSeenIDs = [];
                         showRoundComplete();
                         return null;
                     }
@@ -552,10 +555,8 @@
             })
             .then(function (card) {
                 if (!card) return;
-                // Track this card for the current random session.
-                if (mode === "random") {
-                    randomSeenIDs.push(card.id);
-                }
+                // Track this card for the rest of the session (all modes).
+                sessionSeenIDs.push(card.id);
                 currentCard = card;
                 renderCard();
             })

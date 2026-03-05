@@ -237,7 +237,9 @@ func (r *StudyRepo) HideDeck(ctx context.Context, userID, deckID string, hide bo
 
 // NextDueCard returns the card with the oldest due date (or never-reviewed cards first).
 // Pass topic="" to study all topics.
-func (r *StudyRepo) NextDueCard(ctx context.Context, userID, deckID, topic string) (model.Card, error) {
+// Pass excludeIDs to skip cards already answered in the current session (safety net against
+// repeats when a previous answer submission failed and was queued offline).
+func (r *StudyRepo) NextDueCard(ctx context.Context, userID, deckID, topic string, excludeIDs []string) (model.Card, error) {
 	var sb strings.Builder
 	var args []any
 	nextArg := func(v any) string { args = append(args, v); return fmt.Sprintf("$%d", len(args)) }
@@ -249,6 +251,13 @@ func (r *StudyRepo) NextDueCard(ctx context.Context, userID, deckID, topic strin
 		WHERE c.deck_id = ` + nextArg(deckID))
 	if topic != "" {
 		sb.WriteString(` AND c.topic = ` + nextArg(topic))
+	}
+	if len(excludeIDs) > 0 {
+		placeholders := make([]string, len(excludeIDs))
+		for i, id := range excludeIDs {
+			placeholders[i] = nextArg(id)
+		}
+		sb.WriteString(` AND c.id NOT IN (` + strings.Join(placeholders, ",") + `)`)
 	}
 	sb.WriteString(` AND (rv.id IS NULL OR rv.next_due <= now())
 		ORDER BY COALESCE(rv.next_due, '1970-01-01'::timestamptz)
@@ -284,7 +293,8 @@ func (r *StudyRepo) NextRandomCard(ctx context.Context, deckID, topic string, ex
 
 // NextWrongCard returns the most recently wrong card (last 7 days).
 // Pass topic="" to study all topics.
-func (r *StudyRepo) NextWrongCard(ctx context.Context, userID, deckID, topic string) (model.Card, error) {
+// Pass excludeIDs to skip cards already answered in the current session.
+func (r *StudyRepo) NextWrongCard(ctx context.Context, userID, deckID, topic string, excludeIDs []string) (model.Card, error) {
 	var sb strings.Builder
 	var args []any
 	nextArg := func(v any) string { args = append(args, v); return fmt.Sprintf("$%d", len(args)) }
@@ -296,6 +306,13 @@ func (r *StudyRepo) NextWrongCard(ctx context.Context, userID, deckID, topic str
 		WHERE c.deck_id = ` + nextArg(deckID))
 	if topic != "" {
 		sb.WriteString(` AND c.topic = ` + nextArg(topic))
+	}
+	if len(excludeIDs) > 0 {
+		placeholders := make([]string, len(excludeIDs))
+		for i, id := range excludeIDs {
+			placeholders[i] = nextArg(id)
+		}
+		sb.WriteString(` AND c.id NOT IN (` + strings.Join(placeholders, ",") + `)`)
 	}
 	sb.WriteString(`
 		  AND rv.last_result = 0
