@@ -1349,6 +1349,32 @@ a { color: inherit; }
     border-color: var(--primary);
 }
 
+/* ── Landscape mobile: study page ───────────────────────────────────────────
+   On small devices in landscape (height ≤ 500px) the default card min-height of
+   280px plus the topbar, meta row and answer bar totals ~460px which exceeds the
+   375px viewport of an iPhone SE, hiding the answer buttons under the fold.
+   Reduce card and button sizes so everything fits without needing to scroll.
+──────────────────────────────────────────────────────────────────────────── */
+@media (max-height: 500px) {
+    .flashcard {
+        height: clamp(130px, 34vh, 240px);
+    }
+    .study-meta {
+        padding: .2rem .85rem;
+    }
+    .answer-bar {
+        padding: .4rem .7rem;
+        padding-bottom: max(.4rem, env(safe-area-inset-bottom));
+    }
+    .answer-btn {
+        min-height: 48px;
+        font-size: .78rem;
+        padding: .4rem .3rem;
+    }
+    .answer-btn__arrow { display: none; }   /* hide directional arrows to save space */
+    .answer-help { display: none; }         /* hide help panel in landscape */
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    TEACH / MANAGE PAGES
    ═══════════════════════════════════════════════════════════════════════════ */

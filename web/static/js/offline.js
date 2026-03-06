@@ -249,10 +249,18 @@
     /**
      * nextCard — returns the next card to study from IDB for the given deck
      * and mode ("due", "random", "wrong"). Returns null when no card available.
+     *
+     * @param {string}   deckId
+     * @param {string}   mode        "due" | "random" | "wrong"
+     * @param {string}   topic       "" = all topics
+     * @param {string[]} excludeIDs  card IDs already shown this session (optional)
      */
-    function nextCard(deckId, mode, topic) {
+    function nextCard(deckId, mode, topic, excludeIDs) {
+        var excluded = excludeIDs && excludeIDs.length ? excludeIDs : [];
+
         return idbGetAllByIndex("cards", "deck_id", deckId).then(function (cards) {
             if (!cards || !cards.length) return null;
+
             // Load all reviews for cards in this deck.
             return Promise.all(cards.map(function (c) {
                 return idbGet("reviews", c.id);
@@ -261,9 +269,17 @@
                 reviewArr.forEach(function (rv, i) {
                     if (rv) reviews[cards[i].id] = rv;
                 });
-                if (mode === "random") return pickRandom(cards, topic);
-                if (mode === "wrong")  return pickWrong(cards, reviews, topic);
-                return pickNextDue(cards, reviews, topic);
+
+                // Remove already-seen cards from the candidate pool.
+                var candidates = excluded.length
+                    ? cards.filter(function (c) { return excluded.indexOf(c.id) === -1; })
+                    : cards;
+
+                if (!candidates.length) return null;
+
+                if (mode === "random") return pickRandom(candidates, topic);
+                if (mode === "wrong")  return pickWrong(candidates, reviews, topic);
+                return pickNextDue(candidates, reviews, topic);
             });
         });
     }

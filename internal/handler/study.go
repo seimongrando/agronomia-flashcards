@@ -119,12 +119,13 @@ func (h *StudyHandler) NextCard(w http.ResponseWriter, r *http.Request) {
 
 	topic := r.URL.Query().Get("topic") // optional; empty = all topics
 
-	// Optional comma-separated card IDs to exclude (used by random mode to avoid repeats).
+	// Optional comma-separated card UUIDs to exclude from all study modes.
+	// Invalid UUIDs are silently dropped to prevent PostgreSQL casting errors.
 	var excludeIDs []string
 	if raw := r.URL.Query().Get("exclude"); raw != "" {
 		for _, id := range strings.Split(raw, ",") {
 			id = strings.TrimSpace(id)
-			if id != "" {
+			if id != "" && validate.UUID("", id) == nil {
 				excludeIDs = append(excludeIDs, id)
 			}
 		}

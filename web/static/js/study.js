@@ -339,6 +339,17 @@
             if (mode === "due" && remaining !== null) {
                 remaining = Math.max(0, remaining - 1);
             }
+
+            // "Due" mode: stop when the session count reaches the due count
+            // captured at session start. This acts as a safety net — the backend
+            // already excludes seen cards, but if extra cards slip through (e.g.
+            // due to a brief offline period), the cap prevents unbounded sessions.
+            if (mode === "due" && initialDue !== null && sessionCount >= initialDue) {
+                updateProgress();
+                showDone("Parabéns!", "Você revisou todas as cartas de hoje! Volte amanhã para continuar.", false);
+                return;
+            }
+
             if (mode !== "due" && totalCards !== null && sessionCount >= totalCards) {
                 updateProgress();
                 showDone("Sessão concluída!", "Você revisou " + sessionCount +
@@ -577,11 +588,16 @@
                         return;
                     }
                     setOfflineBanner(true);
-                    return offlineStudy.nextCard(deckId, mode, activeTopic).then(function (card) {
+                    // Pass sessionSeenIDs so offline.js never repeats a card seen
+                    // earlier in the session, including in random mode.
+                    return offlineStudy.nextCard(deckId, mode, activeTopic, sessionSeenIDs).then(function (card) {
                         if (!card) {
                             showDone("Parabéns!", "Nenhuma carta pendente offline.", false);
                             return;
                         }
+                        // Track offline-fetched cards the same as online ones so
+                        // they are excluded from future requests when online again.
+                        sessionSeenIDs.push(card.id);
                         currentCard = card;
                         renderCard();
                     });
@@ -611,6 +627,7 @@
         // Front face
         headFront.innerHTML = badgeHTML;
         bodyFront.innerHTML = renderCardText(currentCard.question);
+        bodyFront.scrollTop = 0;   // reset scroll so new question starts at the top
 
         // Back face
         headBack.innerHTML = badgeHTML;
@@ -619,6 +636,7 @@
             backHTML += '<p class="card-source">\uD83D\uDCDA ' + app.esc(currentCard.source) + '</p>';
         }
         bodyBack.innerHTML = backHTML;
+        bodyBack.scrollTop = 0;    // reset scroll so answer also starts at the top
 
         // Reveal card with enter animation
         spinnerEl.classList.add("hidden");
