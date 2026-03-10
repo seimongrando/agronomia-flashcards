@@ -311,17 +311,20 @@ a { color: inherit; }
 .mobile-nav-backdrop.is-open { display: block; }
 
 /* ── Topbar responsive ────────────────────────────────────────────────────── */
-/* On mobile: hide brand subtitle and center the brand like a native app */
-@media (max-width: 700px) {
+/* Mobile + tablet (≤1024px): show only the brand name "Agronomia", centered.
+   The icon and subtitle are hidden to avoid overlap with the hamburger button
+   and to give the header an app-like appearance on smaller screens. */
+@media (max-width: 1024px) {
     .brand-sub     { display: none; }
+    .brand-icon    { display: none; }
     .topbar .wrap  { position: relative; }
     .topbar-brand  {
         position: absolute;
         left: 50%;
         transform: translateX(-50%);
-        max-width: calc(100% - 80px);
+        /* leave room for the hamburger button (≈40px) + padding on each side */
+        max-width: calc(100% - 110px);
     }
-    .topbar-right  { margin-left: auto; }
 }
 
 /* ── Topbar nav links — always hidden, navigation lives in the hamburger panel ── */

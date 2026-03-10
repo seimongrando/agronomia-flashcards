@@ -81,9 +81,9 @@ func (r *StudyRepo) ListDecksWithCountsPaged(ctx context.Context, p DeckListPara
 		       d.expires_at, d.created_at, d.created_by,
 		       %s AS class_id, %s AS class_name,
 		       COUNT(c.id)::int AS total_cards,
-		       COUNT(CASE WHEN c.id IS NOT NULL AND (rv.id IS NULL OR rv.next_due <= now()) THEN 1 END)::int AS due_now,
+		       COUNT(CASE WHEN c.id IS NOT NULL AND (rv.id IS NULL OR rv.next_due < (CURRENT_DATE + INTERVAL '1 day')) THEN 1 END)::int AS due_now,
 		       MAX(rv.updated_at) AS last_studied,
-		       MIN(rv.next_due) FILTER (WHERE rv.next_due > now()) AS next_review,
+		       MIN(rv.next_due) FILTER (WHERE rv.next_due >= (CURRENT_DATE + INTERVAL '1 day')) AS next_review,
 		       %s AS hidden
 		FROM decks d
 		%s
@@ -259,7 +259,7 @@ func (r *StudyRepo) NextDueCard(ctx context.Context, userID, deckID, topic strin
 		}
 		sb.WriteString(` AND c.id NOT IN (` + strings.Join(placeholders, ",") + `)`)
 	}
-	sb.WriteString(` AND (rv.id IS NULL OR rv.next_due <= now())
+	sb.WriteString(` AND (rv.id IS NULL OR rv.next_due < (CURRENT_DATE + INTERVAL '1 day'))
 		ORDER BY COALESCE(rv.next_due, '1970-01-01'::timestamptz)
 		LIMIT 1`)
 
@@ -329,7 +329,7 @@ func (r *StudyRepo) Stats(ctx context.Context, userID, deckID string) (model.Stu
 			(SELECT COUNT(*)
 			 FROM cards c
 			 LEFT JOIN reviews rv ON rv.card_id = c.id AND rv.user_id = $1
-			 WHERE c.deck_id = $2 AND (rv.id IS NULL OR rv.next_due <= now())
+			 WHERE c.deck_id = $2 AND (rv.id IS NULL OR rv.next_due < (CURRENT_DATE + INTERVAL '1 day'))
 			)::int,
 			(SELECT COUNT(*)
 			 FROM reviews rv JOIN cards c ON c.id = rv.card_id
@@ -361,7 +361,7 @@ func (r *StudyRepo) GlobalProgress(ctx context.Context, userID string) (model.Pr
 			COUNT(*)::int                                                          AS total_studied,
 			COUNT(*) FILTER (WHERE streak >= 3)::int                              AS mastered,
 			COUNT(*) FILTER (WHERE streak > 0 AND streak < 3)::int               AS learning,
-			COUNT(*) FILTER (WHERE next_due <= now())::int                        AS due_today,
+			COUNT(*) FILTER (WHERE next_due < (CURRENT_DATE + INTERVAL '1 day'))::int AS due_today,
 			COALESCE(
 				ROUND(100.0 * COUNT(*) FILTER (WHERE last_result = 2 AND updated_at >= now() - interval '7 days')
 					/ NULLIF(COUNT(*) FILTER (WHERE updated_at >= now() - interval '7 days'), 0)
@@ -423,7 +423,7 @@ func (r *StudyRepo) GlobalProgress(ctx context.Context, userID string) (model.Pr
 			COUNT(c.id)::int                                                       AS total_cards,
 			COUNT(rv.id) FILTER (WHERE rv.streak >= 3)::int                        AS mastered,
 			COUNT(rv.id) FILTER (WHERE rv.streak > 0 AND rv.streak < 3)::int       AS learning,
-			COUNT(c.id)  FILTER (WHERE rv.id IS NULL OR rv.next_due <= now())::int  AS due_now,
+			COUNT(c.id)  FILTER (WHERE rv.id IS NULL OR rv.next_due < (CURRENT_DATE + INTERVAL '1 day'))::int AS due_now,
 			COUNT(rv.id) FILTER (WHERE rv.last_result = 0)::int                    AS wrong,
 			COUNT(rv.id) FILTER (WHERE rv.last_result = 1)::int                    AS hard
 		FROM decks d

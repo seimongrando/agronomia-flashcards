@@ -167,7 +167,14 @@
 
     function isDue(review) {
         if (!review) return true; // never reviewed = due
-        return new Date(review.next_due) <= new Date();
+        // Compare by calendar date, not timestamp, so a card scheduled for "today
+        // at 15:00" is available from midnight — matching the backend's logic of
+        // next_due < CURRENT_DATE + 1 day.
+        var due   = new Date(review.next_due);
+        var today = new Date();
+        due.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        return due <= today;
     }
 
     function matchesTopic(card, topic) {
