@@ -73,6 +73,8 @@ body {
     display: flex;
     flex-direction: column;
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden; /* prevent wide content from causing page-level horizontal scroll,
+                           which breaks position:fixed panels (hamburger menu) on iOS Safari */
 }
 
 a { color: inherit; }
@@ -1676,6 +1678,14 @@ a { color: inherit; }
 .prog-accuracy__fill--ok   { background: #F9A825; }
 .prog-accuracy__fill--low  { background: #c62828; }
 .prog-accuracy__hint { font-size: .82rem; color: var(--text-secondary); margin: 0; }
+
+/* Progress table wrapper — allows horizontal scroll on mobile
+   without overflowing the page body (which would break position:fixed panels) */
+#deck-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-sm);
+}
 
 /* Progress table */
 .prog-table {
