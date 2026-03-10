@@ -325,6 +325,13 @@ a { color: inherit; }
         /* leave room for the hamburger button (≈40px) + padding on each side */
         max-width: calc(100% - 110px);
     }
+
+    /* When the topbar already has a page title in the centre slot
+       (e.g. "Meu Progresso", "Painel do Professor", "Gerenciar Conteúdo"),
+       hide the brand entirely to prevent the two centred labels overlapping. */
+    .topbar:has(.topbar-center:not(:empty)) .topbar-brand {
+        display: none;
+    }
 }
 
 /* ── Topbar nav links — always hidden, navigation lives in the hamburger panel ── */
