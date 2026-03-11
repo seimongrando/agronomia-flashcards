@@ -361,13 +361,13 @@ func (r *StudyRepo) GlobalProgress(ctx context.Context, userID string) (model.Pr
 			COUNT(*)::int                                                          AS total_studied,
 			COUNT(*) FILTER (WHERE streak >= 3)::int                              AS mastered,
 			COUNT(*) FILTER (WHERE streak > 0 AND streak < 3)::int               AS learning,
-			COUNT(*) FILTER (WHERE next_due < (CURRENT_DATE + INTERVAL '1 day'))::int AS due_today,
+			COUNT(*) FILTER (WHERE next_due < ((NOW() AT TIME ZONE 'America/Sao_Paulo')::date + INTERVAL '1 day'))::int AS due_today,
 			COALESCE(
 				ROUND(100.0 * COUNT(*) FILTER (WHERE last_result = 2 AND updated_at >= now() - interval '7 days')
 					/ NULLIF(COUNT(*) FILTER (WHERE updated_at >= now() - interval '7 days'), 0)
 				), 0
 			)::int                                                                AS accuracy_7d,
-			COUNT(DISTINCT updated_at::date)::int                                 AS study_days
+			COUNT(DISTINCT (updated_at AT TIME ZONE 'America/Sao_Paulo')::date)::int AS study_days
 		FROM reviews
 		WHERE user_id = $1`
 
@@ -382,9 +382,12 @@ func (r *StudyRepo) GlobalProgress(ctx context.Context, userID string) (model.Pr
 	// ── Study streak ─────────────────────────────────────────────────────────
 	// Computes current (consecutive ending today/yesterday) and longest streaks
 	// using a gaps-and-islands approach on distinct study dates.
+	// All timestamps are converted to America/Sao_Paulo so that late-night
+	// sessions (e.g. 22h BRT = 01h UTC next day) are attributed to the correct
+	// local calendar day and don't create phantom gaps in the streak.
 	const streakQ = `
 		WITH daily AS (
-			SELECT DISTINCT (updated_at AT TIME ZONE 'UTC')::date AS d
+			SELECT DISTINCT (updated_at AT TIME ZONE 'America/Sao_Paulo')::date AS d
 			FROM reviews
 			WHERE user_id = $1
 		),
@@ -402,7 +405,7 @@ func (r *StudyRepo) GlobalProgress(ctx context.Context, userID string) (model.Pr
 		SELECT
 			COALESCE(
 				(SELECT len FROM groups
-				 WHERE last_day >= CURRENT_DATE - 1
+				 WHERE last_day >= (NOW() AT TIME ZONE 'America/Sao_Paulo')::date - 1
 				 ORDER BY last_day DESC LIMIT 1),
 				0
 			) AS current_streak,

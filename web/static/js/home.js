@@ -340,12 +340,22 @@
     }
 
     /* ── Date helpers ───────────────────────────────────────────────────────── */
+    // Compare by calendar day in the user's local timezone, not by raw hours.
+    // Without this, studying at 7pm shows as "ontem" by morning (13 h ago → -0.54
+    // rounds to -1), while the next review at 7pm tonight shows as "hoje" (13 h
+    // from now → +0.54 rounds to 0), giving the confusing "Estudado ontem /
+    // Próxima revisão hoje" combination even though both are the same calendar day.
+    function localMidnight(date) {
+        var d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }
+
     function daysFromNow(isoStr) {
         if (!isoStr) return null;
-        var now   = new Date();
-        var other = new Date(isoStr);
-        var diff  = Math.round((other - now) / (1000 * 60 * 60 * 24));
-        return diff;
+        var todayMid = localMidnight(new Date());
+        var otherMid = localMidnight(new Date(isoStr));
+        return Math.round((otherMid - todayMid) / (1000 * 60 * 60 * 24));
     }
 
     function relativeDate(isoStr) {
