@@ -36,6 +36,8 @@
         window.history.replaceState(null, "", "/");
     }
 
+    var _initialized = false; // tracks whether init() has successfully run
+
     function init() {
         showAuthError();
         app.checkAuth().then(function (user) {
@@ -49,11 +51,23 @@
             isProfessor = app.effectiveIsStaff(roles);
             app.renderTopbar(user);
             contentEl.classList.remove("hidden");
+            _initialized = true;
             loadDecks();
             loadStreak();
             flushPendingAnswers(); // sync any answers queued during a previous expired session
         });
     }
+
+    // When the user navigates back to this page via the browser's back button,
+    // the browser restores it from the Back/Forward Cache (bfcache) without
+    // re-running init(). The streak and deck counts may have changed since the
+    // user was last here (they just studied cards), so we refresh both.
+    window.addEventListener("pageshow", function (e) {
+        if (e.persisted && _initialized) {
+            loadDecks();
+            loadStreak();
+        }
+    });
 
     function loadStreak() {
         api.get("/api/progress").then(function (res) {
@@ -79,13 +93,20 @@
 
     // Flushes answers queued during a previous session that expired.
     // Called after every successful login so the data is never silently lost.
+    // Re-loads the streak after a successful flush because offline answers may
+    // include study dates that change the consecutive-day counter.
     function flushPendingAnswers() {
         if (!window.offlineStudy) return;
         offlineStudy.pendingCount().then(function (count) {
             if (!count) return;
             offlineStudy.flushQueue().then(function (sent) {
-                if (sent > 0 && window.toast) {
-                    window.toast(sent + " resposta(s) sincronizada(s) com o servidor.", "success");
+                if (sent > 0) {
+                    if (window.toast) {
+                        window.toast(sent + " resposta(s) sincronizada(s) com o servidor.", "success");
+                    }
+                    // Flushed answers may have added study dates to the database,
+                    // so the streak shown on page load may now be stale.
+                    loadStreak();
                 }
             }).catch(function () { /* network still unavailable — will retry later */ });
         }).catch(function () {});
