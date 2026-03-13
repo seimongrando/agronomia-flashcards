@@ -260,7 +260,10 @@ func (r *StudyRepo) NextDueCard(ctx context.Context, userID, deckID, topic strin
 		sb.WriteString(` AND c.id NOT IN (` + strings.Join(placeholders, ",") + `)`)
 	}
 	sb.WriteString(` AND (rv.id IS NULL OR rv.next_due < (CURRENT_DATE + INTERVAL '1 day'))
-		ORDER BY COALESCE(rv.next_due, '1970-01-01'::timestamptz)
+		ORDER BY COALESCE(rv.next_due, '1970-01-01'::timestamptz),
+		         random()   -- tiebreak: randomise cards with the same due date
+		                    -- (e.g. all new cards share '1970-01-01') so each
+		                    -- session feels different even at the same priority level
 		LIMIT 1`)
 
 	return scanCard(r.db.QueryRowContext(ctx, sb.String(), args...))
@@ -317,7 +320,7 @@ func (r *StudyRepo) NextWrongCard(ctx context.Context, userID, deckID, topic str
 	sb.WriteString(`
 		  AND rv.last_result = 0
 		  AND rv.updated_at >= now() - interval '7 days'
-		ORDER BY rv.updated_at DESC
+		ORDER BY rv.updated_at DESC, random()
 		LIMIT 1`)
 
 	return scanCard(r.db.QueryRowContext(ctx, sb.String(), args...))

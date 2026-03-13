@@ -48,6 +48,11 @@
     var sessionSeenIDs = [];   // card IDs answered this session — excluded from all subsequent requests
     var initialDue     = null; // due_now captured once at session start, used as the "due" mode total
 
+    // Session-expiry banner — shown at most once per study session when the JWT
+    // expires mid-session; differs from the network-offline banner.
+    var sessionExpiredBannerEl   = null;
+    var sessionExpiredBannerShown = false;
+
     /* ── Swipe / drag state ─────────────────────────────────────────────────  */
     var SWIPE_THRESHOLD = 72;
     var LABEL_THRESHOLD = 36;
@@ -93,6 +98,29 @@
     }
     window.addEventListener("online",  function () { setOfflineBanner(false); });
     window.addEventListener("offline", function () { setOfflineBanner(true);  });
+
+    // Shows a sticky (non-auto-dismissing) banner when the session expires
+    // mid-study. Shown at most once so it doesn't repeat on every card answer.
+    function setSessionExpiredBanner() {
+        if (sessionExpiredBannerShown || sessionExpiredBannerEl) return;
+        sessionExpiredBannerShown = true;
+
+        sessionExpiredBannerEl = document.createElement("div");
+        sessionExpiredBannerEl.className = "offline-banner offline-banner--warn";
+        sessionExpiredBannerEl.setAttribute("role", "alert");
+
+        var msg = document.createElement("span");
+        msg.textContent = "Sessão expirada — suas respostas estão salvas e serão sincronizadas após o login.";
+
+        var loginBtn = document.createElement("a");
+        loginBtn.href = "/";
+        loginBtn.className = "offline-banner__login";
+        loginBtn.textContent = "Ir para login";
+
+        sessionExpiredBannerEl.appendChild(msg);
+        sessionExpiredBannerEl.appendChild(loginBtn);
+        document.body.appendChild(sessionExpiredBannerEl);
+    }
 
     /* ════════════════════════════════════════════════════════════════════════
        TEXT RENDERING
@@ -370,17 +398,38 @@
             }, 360);
         }
 
+        var savedCardId = currentCard ? currentCard.id : null;
+
         Promise.all([flyDone, apiDone]).then(function (results) {
             var res = results[1];
+
+            // Session expired (401) — queue locally and show a specific warning.
+            // Do NOT show the "offline" banner since the device IS connected;
+            // the problem is the auth token, not the network.
+            if (res.status === 401) {
+                if (!window.offlineStudy || !savedCardId) {
+                    onAnswerError();
+                    return;
+                }
+                offlineStudy.recordAnswer(savedCardId, result)
+                    .then(function () {
+                        setSessionExpiredBanner();
+                        onAnswerSuccess();
+                    })
+                    .catch(function () { onAnswerError(); });
+                return;
+            }
+
             if (!res.ok) throw new Error("answer failed");
             onAnswerSuccess();
         }).catch(function () {
-            // Network error — save answer to offline queue and continue.
-            if (!window.offlineStudy) { onAnswerError(); return; }
-            var savedCardId = currentCard.id;
+            // True network error (fetch rejected / no response) — save to offline
+            // queue so the answer is sent as soon as connectivity is restored.
+            if (!window.offlineStudy || !savedCardId) { onAnswerError(); return; }
             offlineStudy.recordAnswer(savedCardId, result)
                 .then(function () {
-                    // Also register a Background Sync so the SW sends it when online.
+                    // Register a Background Sync tag so the SW flushes the queue
+                    // even if the user closes the tab before reconnecting.
                     if (navigator.serviceWorker && navigator.serviceWorker.ready) {
                         navigator.serviceWorker.ready.then(function (reg) {
                             if (reg.sync) reg.sync.register("agro-answer-queue").catch(function(){});

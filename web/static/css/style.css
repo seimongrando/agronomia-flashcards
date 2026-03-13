@@ -3309,6 +3309,20 @@ body:has(.student-mode-banner) main { padding-bottom: 3.5rem; }
 }
 .offline-banner__close:hover { opacity: 1; }
 
+/* Session-expired variant — amber/warning instead of orange, includes a login link */
+.offline-banner--warn {
+    background: #92400e;    /* darker amber to distinguish from network-offline */
+    white-space: normal;    /* allow wrapping since message is longer */
+}
+.offline-banner__login {
+    color: #fef3c7;
+    font-weight: 700;
+    text-decoration: underline;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.offline-banner__login:hover { color: #fff; }
+
 /* ── Notification permission prompt ──────────────────────────────────────── */
 .notif-prompt {
     position: fixed;

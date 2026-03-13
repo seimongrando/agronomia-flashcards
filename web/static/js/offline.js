@@ -182,31 +182,71 @@
         return card.topic && card.topic === topic;
     }
 
+    // Picks a random element from an array (Fisher-Yates single draw).
+    function pickRandFrom(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+    }
+
     function pickNextDue(cards, reviews, topic) {
-        // Return first card that is due and matches topic filter.
+        // Collect all due cards that match the topic filter.
+        var due = [];
         for (var i = 0; i < cards.length; i++) {
             var c = cards[i];
             if (!matchesTopic(c, topic)) continue;
-            if (isDue(reviews[c.id])) return c;
+            if (isDue(reviews[c.id])) due.push(c);
         }
-        return null;
+        if (!due.length) return null;
+
+        // Sort by effective due date ascending (cards never reviewed → epoch 0,
+        // so they share the highest priority). This mirrors the backend's
+        // ORDER BY COALESCE(next_due, '1970-01-01').
+        due.sort(function (a, b) {
+            var da = reviews[a.id] ? new Date(reviews[a.id].next_due).getTime() : 0;
+            var db = reviews[b.id] ? new Date(reviews[b.id].next_due).getTime() : 0;
+            return da - db;
+        });
+
+        // Among cards that share the oldest due date, pick randomly (tiebreak)
+        // to avoid always seeing new cards in the same insertion order.
+        var oldest = due[0];
+        var oldestTime = reviews[oldest.id] ? new Date(reviews[oldest.id].next_due).getTime() : 0;
+        var tied = due.filter(function (c) {
+            var t = reviews[c.id] ? new Date(reviews[c.id].next_due).getTime() : 0;
+            return t === oldestTime;
+        });
+        return pickRandFrom(tied);
     }
 
     function pickRandom(cards, topic) {
         var filtered = cards.filter(function (c) { return matchesTopic(c, topic); });
         if (!filtered.length) return null;
-        return filtered[Math.floor(Math.random() * filtered.length)];
+        return pickRandFrom(filtered);
     }
 
     function pickWrong(cards, reviews, topic) {
-        // Cards with last_result = 0 (wrong) that are due.
+        // Collect wrong cards (last_result = 0) that are due.
+        var wrong = [];
         for (var i = 0; i < cards.length; i++) {
             var c = cards[i];
             if (!matchesTopic(c, topic)) continue;
             var rv = reviews[c.id];
-            if (rv && rv.last_result === 0 && isDue(rv)) return c;
+            if (rv && rv.last_result === 0 && isDue(rv)) wrong.push(c);
         }
-        return pickNextDue(cards, reviews, topic);
+        if (!wrong.length) return pickNextDue(cards, reviews, topic);
+
+        // Most recently wrong first (mirrors backend ORDER BY updated_at DESC),
+        // then random tiebreak within same updated_at.
+        wrong.sort(function (a, b) {
+            var ta = reviews[a.id] ? new Date(reviews[a.id].updated_at).getTime() : 0;
+            var tb = reviews[b.id] ? new Date(reviews[b.id].updated_at).getTime() : 0;
+            return tb - ta; // descending
+        });
+        var newest = reviews[wrong[0].id] ? new Date(reviews[wrong[0].id].updated_at).getTime() : 0;
+        var tied = wrong.filter(function (c) {
+            var t = reviews[c.id] ? new Date(reviews[c.id].updated_at).getTime() : 0;
+            return t === newest;
+        });
+        return pickRandFrom(tied);
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -334,8 +374,15 @@
             if (!items || !items.length) return 0;
 
             // Send sequentially to avoid race conditions on the server.
+            // Uses a sentinel object to abort the chain early on 401.
+            var ABORT = { aborted: true };
+
             return items.reduce(function (chain, item) {
-                return chain.then(function (sent) {
+                return chain.then(function (state) {
+                    // Previous iteration triggered an abort (session expired).
+                    if (state && state.aborted) return state;
+                    var sent = state || 0;
+
                     return fetch("/api/study/answer", {
                         method: "POST",
                         credentials: "same-origin",
@@ -346,16 +393,24 @@
                         body: JSON.stringify({ card_id: item.card_id, result: item.result })
                     }).then(function (res) {
                         if (res.ok || res.status === 409) {
+                            // Success or already applied — remove from queue.
                             return idbDelete("answer_queue", item._id).then(function () {
                                 return sent + 1;
                             });
                         }
-                        return sent; // keep in queue if server error
+                        if (res.status === 401) {
+                            // Session expired — stop flushing. Items stay in the
+                            // queue so they sync automatically after re-login.
+                            return ABORT;
+                        }
+                        return sent; // other server error — keep item, try later
                     }).catch(function () {
-                        return sent; // network error — keep in queue
+                        return sent; // network error — keep item, try later
                     });
                 });
-            }, Promise.resolve(0));
+            }, Promise.resolve(0)).then(function (state) {
+                return (state && state.aborted) ? 0 : state;
+            });
         });
     }
 

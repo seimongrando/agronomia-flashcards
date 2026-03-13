@@ -51,6 +51,7 @@
             contentEl.classList.remove("hidden");
             loadDecks();
             loadStreak();
+            flushPendingAnswers(); // sync any answers queued during a previous expired session
         });
     }
 
@@ -59,15 +60,35 @@
             if (!res.ok) return;
             return res.json();
         }).then(function (d) {
-            if (!d || !d.study_streak) return;
-            var streak = d.study_streak;
-            if (streak < 2) return;
+            if (!d) return;
+            var streak = d.study_streak || 0;
             var banner = document.getElementById("streak-banner");
             if (!banner) return;
+            // Show the streak banner for any streak ≥ 1 (global platform usage,
+            // not per-deck). The number reflects distinct calendar days with at
+            // least one card reviewed — regardless of which deck was studied.
+            if (streak < 1) return;
             var emoji = streak >= 30 ? "🌳" : streak >= 14 ? "🌿" : streak >= 7 ? "🌱" : "✨";
-            banner.textContent = emoji + " " + streak + " dias consecutivos de estudo! Continue assim.";
+            var label = streak === 1
+                ? emoji + " 1 dia de estudo — continue amanhã para iniciar uma sequência!"
+                : emoji + " " + streak + " dias consecutivos de estudo na plataforma!";
+            banner.textContent = label;
             banner.classList.remove("hidden");
         }).catch(function () { /* silently ignore */ });
+    }
+
+    // Flushes answers queued during a previous session that expired.
+    // Called after every successful login so the data is never silently lost.
+    function flushPendingAnswers() {
+        if (!window.offlineStudy) return;
+        offlineStudy.pendingCount().then(function (count) {
+            if (!count) return;
+            offlineStudy.flushQueue().then(function (sent) {
+                if (sent > 0 && window.toast) {
+                    window.toast(sent + " resposta(s) sincronizada(s) com o servidor.", "success");
+                }
+            }).catch(function () { /* network still unavailable — will retry later */ });
+        }).catch(function () {});
     }
 
     // Pre-syncs all visible decks to IndexedDB so the student can study
