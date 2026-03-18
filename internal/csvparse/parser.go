@@ -1,6 +1,7 @@
 package csvparse
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -56,12 +57,69 @@ var requiredColumnsWithDeck = []string{"type", "question", "answer"}
 // requiredColumnsNoDeck is used in single-deck mode (no deck column).
 var requiredColumnsNoDeck = []string{"type", "question", "answer"}
 
+// detectSeparator inspects the first non-empty line of the CSV and returns the
+// most likely field separator. Supported candidates (checked in priority order):
+//
+//   - Tab  '\t' — TSV files exported by some tools
+//   - Semicolon ';' — common in Excel installations with European/Brazilian locale
+//   - Comma ',' — RFC 4180 default
+//
+// Whichever candidate appears most in the first line wins. On a tie the order
+// above is used as tiebreaker (tab > semicolon > comma).
+func detectSeparator(firstLine string) rune {
+	counts := map[rune]int{
+		'\t': strings.Count(firstLine, "\t"),
+		';':  strings.Count(firstLine, ";"),
+		',':  strings.Count(firstLine, ","),
+	}
+	best := ','
+	bestN := counts[',']
+	for _, c := range []rune{'\t', ';'} {
+		if counts[c] > bestN {
+			best = c
+			bestN = counts[c]
+		}
+	}
+	return best
+}
+
 // Parse reads a UTF-8 CSV from r and validates every row according to opts.
+//
+// The separator is auto-detected from the header line: comma, semicolon, and
+// tab are all supported. Text fields containing the separator must be enclosed
+// in double-quote characters (RFC 4180). LazyQuotes is enabled so slightly
+// malformed quoting does not abort the import.
+//
 // A hard error is returned only for structural problems (missing required header
 // columns, too many rows). Per-row validation errors are stored in Row.Error
 // and do not abort the parse.
 func Parse(r io.Reader, opts ParseOptions) (*Result, error) {
-	reader := csv.NewReader(r)
+	// Read entire body so we can (a) detect the separator from the first line
+	// without consuming the reader, and (b) enforce the size limit before the
+	// csv.Reader allocates anything.
+	raw, err := io.ReadAll(io.LimitReader(r, MaxFileSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("erro ao ler arquivo: %w", err)
+	}
+	if len(raw) > MaxFileSize {
+		return nil, fmt.Errorf("arquivo excede o limite de %d MB", MaxFileSize>>20)
+	}
+
+	// Strip UTF-8 BOM that Excel/Windows sometimes prepends.
+	raw = bytes.TrimPrefix(raw, []byte("\xef\xbb\xbf"))
+
+	// Detect separator from the first non-empty line.
+	firstLine := ""
+	for _, line := range strings.SplitN(string(raw), "\n", 3) {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			firstLine = trimmed
+			break
+		}
+	}
+	sep := detectSeparator(firstLine)
+
+	reader := csv.NewReader(bytes.NewReader(raw))
+	reader.Comma = sep
 	reader.TrimLeadingSpace = true
 	reader.LazyQuotes = true
 	reader.FieldsPerRecord = -1
@@ -123,9 +181,6 @@ func Parse(r io.Reader, opts ParseOptions) (*Result, error) {
 func buildColumnIndex(header []string) map[string]int {
 	idx := make(map[string]int, len(header))
 	for i, h := range header {
-		if i == 0 {
-			h = strings.TrimPrefix(h, "\xef\xbb\xbf") // strip UTF-8 BOM
-		}
 		idx[strings.ToLower(strings.TrimSpace(h))] = i
 	}
 	return idx

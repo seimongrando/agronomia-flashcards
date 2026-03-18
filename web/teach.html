@@ -165,7 +165,18 @@
                             <!-- Collapsible format guide -->
                             <div id="csv-guide-body" class="hidden" style="margin-bottom:.9rem">
                                 <div class="csv-guide">
-                                    <p class="csv-guide__title">Colunas do arquivo</p>
+                                    <p class="csv-guide__title">Separador e delimitador de texto</p>
+                                    <p class="csv-guide__text">
+                                        O sistema detecta automaticamente o separador de colunas:
+                                        <strong>vírgula</strong> <code>,</code>, <strong>ponto-e-vírgula</strong> <code>;</code>
+                                        ou <strong>tabulação</strong> <code>Tab</code>.<br>
+                                        <span style="color:var(--warning,#b45309)">⚠</span>
+                                        Se um campo contiver o separador (ex.: vírgula no meio da resposta), <strong>envolva-o em aspas duplas</strong>:
+                                        <code>"ESG, ambiental e social"</code>.
+                                        Sem aspas, a vírgula seria interpretada como início de nova coluna e o card ficaria inválido.
+                                    </p>
+
+                                    <p class="csv-guide__title" style="margin-top:.75rem">Colunas do arquivo</p>
                                     <p class="csv-guide__text">
                                         Obrigatórias: <code>deck</code>, <code>type</code>, <code>question</code>, <code>answer</code>.<br>
                                         Opcionais: <code>subject</code> (matéria do deck), <code>topic</code>, <code>source</code>.
@@ -206,16 +217,21 @@
                                         </tbody>
                                     </table>
 
-                                    <p class="csv-guide__title" style="margin-top:.75rem">Exemplo</p>
+                                    <p class="csv-guide__title" style="margin-top:.75rem">Exemplo (com vírgula; ponto-e-vírgula funciona igual)</p>
                                     <pre class="csv-example">deck,subject,type,question,answer,topic,source
 Fotoss&iacute;ntese,Biologia Vegetal,conceito,O que &eacute; fotoss&iacute;ntese?,Convers&atilde;o de luz em glicose.,Cloroplasto,Cap. 5
 Fotoss&iacute;ntese,Biologia Vegetal,processo,Fases da fotoss&iacute;ntese?,Fase luminosa e Ciclo de Calvin.,,
-Fertilidade,Qu&iacute;mica do Solo,aplicacao,Como calcular calagem?,Dose = (V2-V1) &times; CTC / PRNT &times; 100,Calagem,UFPR</pre>
+Fertilidade,Qu&iacute;mica do Solo,aplicacao,Como calcular calagem?,Dose = (V2-V1) &times; CTC / PRNT &times; 100,Calagem,UFPR
+ESG no Agro,Agroneg&oacute;cio,conceito,O que &eacute; ESG no agro?,"ESG no agro &eacute; a aplica&ccedil;&atilde;o dos crit&eacute;rios Ambiental, Social e Governan&ccedil;a.",ESG,SENAR</pre>
+                                    <p class="csv-guide__note" style="margin-top:.4rem;color:var(--text-secondary)">
+                                        ↑ A última linha tem vírgulas na resposta — note as aspas duplas ao redor do campo.
+                                    </p>
 
                                     <p class="csv-guide__note" style="margin-top:.6rem">
                                         * Se um deck j&aacute; est&aacute; selecionado acima, a coluna <code>deck</code> pode ser omitida.
                                         A mesma pergunta importada duas vezes <strong>atualiza</strong> o card existente (sem duplicatas).
                                         Arquivo: m&aacute;x. 2 MB e 2.000 linhas.
+                                        Separadores aceitos: <code>,</code> <code>;</code> e <code>Tab</code> (detectado automaticamente).
                                     </p>
                                 </div>
                             </div>
