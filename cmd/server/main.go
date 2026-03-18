@@ -137,6 +137,7 @@ func main() {
 	mux.Handle("POST /api/content/cards", contentMgmt(http.HandlerFunc(contentH.CreateCard)))
 	mux.Handle("PUT /api/content/cards/{id}", contentMgmt(http.HandlerFunc(contentH.UpdateCard)))
 	mux.Handle("DELETE /api/content/cards/{id}", contentMgmt(http.HandlerFunc(contentH.DeleteCard)))
+	mux.Handle("DELETE /api/content/decks/{id}/cards", contentMgmt(http.HandlerFunc(contentH.BulkDeleteCards)))
 	mux.Handle("POST /api/content/upload-csv", contentMgmt(http.HandlerFunc(contentH.UploadCSV)))
 	mux.Handle("GET /api/content/decks/{id}/export.csv", contentMgmt(http.HandlerFunc(contentH.ExportDeckCSV)))
 

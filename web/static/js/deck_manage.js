@@ -48,6 +48,17 @@
     var editSource     = document.getElementById("edit-source");
     var editError      = document.getElementById("edit-error");
 
+    // ── Bulk selection ────────────────────────────────────────────────────────
+    var btnSelectMode  = document.getElementById("btn-select-mode");
+    var bulkBar        = document.getElementById("bulk-bar");
+    var chkSelectAll   = document.getElementById("chk-select-all");
+    var bulkCount      = document.getElementById("bulk-count");
+    var btnBulkDelete  = document.getElementById("btn-bulk-delete");
+    var btnBulkCancel  = document.getElementById("btn-bulk-cancel");
+
+    var selectionMode  = false;   // are checkboxes visible?
+    var selectedIDs    = {};      // id → true for checked cards
+
     function getEditType() {
         var radios = document.querySelectorAll('input[name="edit-type"]');
         for (var i = 0; i < radios.length; i++) {
@@ -207,13 +218,34 @@
             });
         }
 
+        /* selection checkboxes */
+        var chks = cardListEl.querySelectorAll(".card-item-chk");
+        for (var k = 0; k < chks.length; k++) {
+            chks[k].addEventListener("change", function () {
+                var id = this.getAttribute("data-id");
+                if (this.checked) {
+                    selectedIDs[id] = true;
+                } else {
+                    delete selectedIDs[id];
+                }
+                updateBulkBar();
+            });
+        }
+
         renderPagination(pages);
     }
 
     function renderCardItem(c) {
         // answer intentionally omitted from list (data minimisation).
         // It is fetched when the edit modal opens.
-        return '<div class="card-item">' +
+        var checked = selectedIDs[c.id] ? " checked" : "";
+        return '<div class="card-item' + (selectionMode ? " card-item--selectable" : "") + '"' +
+                ' data-id="' + app.esc(c.id) + '">' +
+            (selectionMode
+                ? '<label class="card-item-check" aria-label="Selecionar card">' +
+                    '<input type="checkbox" class="card-item-chk" data-id="' + app.esc(c.id) + '"' + checked + '>' +
+                  '</label>'
+                : '') +
             '<div class="card-item-body">' +
                 '<div class="card-item-q">' + app.esc(c.question) + '</div>' +
                 (c.topic ? '<div class="card-item-a">' + app.esc(c.topic) + '</div>' : '') +
@@ -223,12 +255,121 @@
                 '</div>' +
             '</div>' +
             '<div class="card-item-actions">' +
-                (canEdit
+                (!selectionMode && canEdit
                     ? '<button class="btn btn-outline btn-sm btn-edit" data-id="' + app.esc(c.id) + '"' +
                       ' aria-label="Editar card">Editar</button>'
                     : '') +
             '</div>' +
         '</div>';
+    }
+
+    /* ── Bulk selection helpers ──────────────────── */
+    function enterSelectionMode() {
+        selectionMode = true;
+        selectedIDs = {};
+        if (btnSelectMode) {
+            btnSelectMode.classList.add("btn-primary");
+            btnSelectMode.classList.remove("btn-outline");
+        }
+        renderPage();
+        if (bulkBar) bulkBar.classList.remove("hidden");
+        updateBulkBar();
+    }
+
+    function exitSelectionMode() {
+        selectionMode = false;
+        selectedIDs = {};
+        if (btnSelectMode) {
+            btnSelectMode.classList.remove("btn-primary");
+            btnSelectMode.classList.add("btn-outline");
+        }
+        if (bulkBar) bulkBar.classList.add("hidden");
+        if (chkSelectAll) chkSelectAll.checked = false;
+        renderPage();
+    }
+
+    function updateBulkBar() {
+        var count = Object.keys(selectedIDs).length;
+        if (bulkCount) {
+            bulkCount.textContent = count === 0
+                ? "0 selecionados"
+                : count === 1 ? "1 selecionado" : count + " selecionados";
+        }
+        if (btnBulkDelete) btnBulkDelete.disabled = count === 0;
+
+        // Keep "select all" checkbox in sync.
+        if (chkSelectAll && filtered.length > 0) {
+            var pageIDs = getCurrentPageIDs();
+            var allChecked = pageIDs.length > 0 && pageIDs.every(function (id) { return selectedIDs[id]; });
+            chkSelectAll.indeterminate = !allChecked && count > 0;
+            chkSelectAll.checked = allChecked;
+        }
+    }
+
+    function getCurrentPageIDs() {
+        var start = (currentPage - 1) * PAGE_SIZE;
+        var slice = filtered.slice(start, start + PAGE_SIZE);
+        return slice.map(function (c) { return c.id; });
+    }
+
+    if (btnSelectMode) {
+        btnSelectMode.addEventListener("click", function () {
+            if (selectionMode) exitSelectionMode();
+            else enterSelectionMode();
+        });
+    }
+
+    if (chkSelectAll) {
+        chkSelectAll.addEventListener("change", function () {
+            var ids = getCurrentPageIDs();
+            ids.forEach(function (id) {
+                if (chkSelectAll.checked) selectedIDs[id] = true;
+                else delete selectedIDs[id];
+            });
+            // Sync individual checkboxes in the rendered list.
+            cardListEl.querySelectorAll(".card-item-chk").forEach(function (chk) {
+                chk.checked = !!selectedIDs[chk.getAttribute("data-id")];
+            });
+            updateBulkBar();
+        });
+    }
+
+    if (btnBulkCancel) {
+        btnBulkCancel.addEventListener("click", exitSelectionMode);
+    }
+
+    if (btnBulkDelete) {
+        btnBulkDelete.addEventListener("click", function () {
+            var ids = Object.keys(selectedIDs);
+            if (!ids.length) return;
+            var label = ids.length === 1 ? "1 card" : ids.length + " cards";
+            if (!confirm("Excluir " + label + " permanentemente? Essa ação não pode ser desfeita.")) return;
+
+            btnBulkDelete.disabled = true;
+            btnBulkDelete.textContent = "Excluindo…";
+
+            // api.del doesn't support a body; use fetch directly.
+            fetch("/api/content/decks/" + deckId + "/cards", {
+                method: "DELETE",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                body: JSON.stringify({ ids: ids })
+            })
+                .then(function (res) {
+                    if (!res.ok) throw new Error("falha");
+                    toast(label + " excluído(s) com sucesso.", "success");
+                    exitSelectionMode();
+                    loadCards(); // reload full list
+                })
+                .catch(function () {
+                    toast("Erro ao excluir cards selecionados.", "error");
+                    btnBulkDelete.disabled = false;
+                    btnBulkDelete.textContent = "Excluir selecionados";
+                });
+        });
     }
 
     function renderPagination(pages) {

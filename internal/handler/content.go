@@ -349,6 +349,44 @@ func (h *ContentHandler) DeleteCard(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// BulkDeleteCards handles DELETE /api/content/decks/{id}/cards.
+// Body (optional): {"ids": ["uuid1", "uuid2", ...]}
+// If ids is empty or omitted, ALL cards in the deck are deleted.
+func (h *ContentHandler) BulkDeleteCards(w http.ResponseWriter, r *http.Request) {
+	deckID := r.PathValue("id")
+	if err := validate.UUID("deck_id", deckID); err != nil {
+		Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var body struct {
+		IDs []string `json:"ids"`
+	}
+	// Body is optional — absence means "delete all".
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			Error(w, http.StatusBadRequest, "json inválido")
+			return
+		}
+	}
+
+	// Validate each provided ID.
+	for _, id := range body.IDs {
+		if err := validate.UUID("ids[]", id); err != nil {
+			Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
+	deleted, err := h.svc.BulkDeleteCards(r.Context(), deckID, body.IDs)
+	if err != nil {
+		if deckMutationError(w, err, "deck não encontrado", "erro ao excluir cards") {
+			return
+		}
+	}
+	JSON(w, http.StatusOK, map[string]int64{"deleted": deleted})
+}
+
 // --- CSV upload ---
 
 // dryRunResponse is the shape returned for ?dryRun=1 requests.

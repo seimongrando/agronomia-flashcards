@@ -200,6 +200,17 @@ func (s *ContentService) DeleteCard(ctx context.Context, id string) error {
 	return s.cards.Delete(ctx, id)
 }
 
+// BulkDeleteCards removes cards from a deck owned by the calling user.
+// If ids is non-empty, only those specific cards are deleted.
+// If ids is empty, ALL cards in the deck are removed.
+// Returns the number of cards deleted.
+func (s *ContentService) BulkDeleteCards(ctx context.Context, deckID string, ids []string) (int64, error) {
+	if _, err := s.checkDeckOwnership(ctx, deckID); err != nil {
+		return 0, err
+	}
+	return s.cards.BulkDelete(ctx, deckID, ids)
+}
+
 // --- CSV Import ---
 
 // EstimateDryRun counts how many valid rows from parsed would result in inserts

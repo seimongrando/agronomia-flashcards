@@ -248,6 +248,35 @@ func (r *CardRepo) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// BulkDelete removes cards from a deck.
+// If ids is non-empty, only those cards are deleted (they must belong to deckID).
+// If ids is empty, ALL cards in deckID are removed.
+// Returns the number of rows deleted.
+func (r *CardRepo) BulkDelete(ctx context.Context, deckID string, ids []string) (int64, error) {
+	var res sql.Result
+	var err error
+	if len(ids) == 0 {
+		res, err = r.db.ExecContext(ctx, `DELETE FROM cards WHERE deck_id = $1`, deckID)
+	} else {
+		// Build a parameterised IN (...) list.
+		args := make([]interface{}, 0, len(ids)+1)
+		args = append(args, deckID)
+		placeholders := make([]string, len(ids))
+		for i, id := range ids {
+			args = append(args, id)
+			placeholders[i] = fmt.Sprintf("$%d", i+2)
+		}
+		q := "DELETE FROM cards WHERE deck_id = $1 AND id IN (" +
+			strings.Join(placeholders, ",") + ")"
+		res, err = r.db.ExecContext(ctx, q, args...)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("card bulk delete: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
 // FindByQuestion looks up a card by deck + exact question text.
 func (r *CardRepo) FindByQuestion(ctx context.Context, deckID, question string) (model.Card, error) {
 	const q = `SELECT id, deck_id, topic, type, question, answer, source, created_at, updated_at
