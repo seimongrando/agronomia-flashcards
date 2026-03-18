@@ -148,10 +148,13 @@
 
 <!-- Bulk action bar — visible only in selection mode -->
 <div id="bulk-bar" class="bulk-action-bar hidden" role="toolbar" aria-label="Ações em lote">
-    <label class="bulk-select-all" for="chk-select-all" title="Selecionar todos os cards desta página">
-        <input type="checkbox" id="chk-select-all" aria-label="Selecionar todos">
-        <span id="bulk-count">0 selecionados</span>
-    </label>
+    <div class="bulk-left">
+        <label class="bulk-select-all" for="chk-select-all">
+            <input type="checkbox" id="chk-select-all" aria-label="Selecionar todos os cards">
+            <span>Selecionar todos</span>
+        </label>
+        <span id="bulk-count" class="bulk-count-badge">0 selecionados</span>
+    </div>
     <div class="bulk-actions">
         <button id="btn-bulk-delete" class="btn btn-sm bulk-delete-btn" disabled aria-label="Excluir cards selecionados">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">

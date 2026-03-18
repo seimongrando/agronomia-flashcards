@@ -2492,17 +2492,33 @@ a { color: inherit; }
     border-color: #F87171;
 }
 .bulk-delete-btn:disabled { opacity: .45; cursor: not-allowed; }
+.bulk-left {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+}
 .bulk-select-all {
     display: flex;
     align-items: center;
-    gap: .55rem;
+    gap: .45rem;
     cursor: pointer;
-    font-size: .9rem;
+    font-size: .88rem;
     font-weight: 600;
     color: var(--text);
     user-select: none;
 }
 .bulk-select-all input { width: 1.1rem; height: 1.1rem; accent-color: var(--primary); cursor: pointer; }
+.bulk-count-badge {
+    font-size: .82rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: .15rem .65rem;
+    white-space: nowrap;
+}
 .bulk-actions { display: flex; gap: .5rem; align-items: center; }
 .bulk-count {
     font-weight: 600;

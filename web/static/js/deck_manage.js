@@ -290,26 +290,31 @@
 
     function updateBulkBar() {
         var count = Object.keys(selectedIDs).length;
+        var total = filtered.length;
+
         if (bulkCount) {
-            bulkCount.textContent = count === 0
-                ? "0 selecionados"
-                : count === 1 ? "1 selecionado" : count + " selecionados";
+            if (count === 0) {
+                bulkCount.textContent = "0 selecionados";
+            } else if (count === total) {
+                bulkCount.textContent = "Todos (" + count + ") selecionados";
+            } else {
+                bulkCount.textContent = count === 1 ? "1 selecionado" : count + " selecionados";
+            }
         }
         if (btnBulkDelete) btnBulkDelete.disabled = count === 0;
 
-        // Keep "select all" checkbox in sync.
-        if (chkSelectAll && filtered.length > 0) {
-            var pageIDs = getCurrentPageIDs();
-            var allChecked = pageIDs.length > 0 && pageIDs.every(function (id) { return selectedIDs[id]; });
-            chkSelectAll.indeterminate = !allChecked && count > 0;
-            chkSelectAll.checked = allChecked;
+        // Sync "select all" checkbox against ALL filtered cards (not just current page).
+        if (chkSelectAll && total > 0) {
+            var allSelected = filtered.every(function (c) { return selectedIDs[c.id]; });
+            var someSelected = count > 0 && !allSelected;
+            chkSelectAll.checked = allSelected;
+            chkSelectAll.indeterminate = someSelected;
         }
-    }
 
-    function getCurrentPageIDs() {
-        var start = (currentPage - 1) * PAGE_SIZE;
-        var slice = filtered.slice(start, start + PAGE_SIZE);
-        return slice.map(function (c) { return c.id; });
+        // Sync visible card-level checkboxes (current page only).
+        cardListEl.querySelectorAll(".card-item-chk").forEach(function (chk) {
+            chk.checked = !!selectedIDs[chk.getAttribute("data-id")];
+        });
     }
 
     if (btnSelectMode) {
@@ -319,16 +324,13 @@
         });
     }
 
+    // "Select all" selects/deselects ALL filtered cards — not just the current page —
+    // so the professor can delete everything without navigating page by page.
     if (chkSelectAll) {
         chkSelectAll.addEventListener("change", function () {
-            var ids = getCurrentPageIDs();
-            ids.forEach(function (id) {
-                if (chkSelectAll.checked) selectedIDs[id] = true;
-                else delete selectedIDs[id];
-            });
-            // Sync individual checkboxes in the rendered list.
-            cardListEl.querySelectorAll(".card-item-chk").forEach(function (chk) {
-                chk.checked = !!selectedIDs[chk.getAttribute("data-id")];
+            filtered.forEach(function (c) {
+                if (chkSelectAll.checked) selectedIDs[c.id] = true;
+                else delete selectedIDs[c.id];
             });
             updateBulkBar();
         });
