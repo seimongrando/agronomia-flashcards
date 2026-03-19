@@ -55,6 +55,7 @@ type OfflineReview struct {
 	EaseFactor   float64 `json:"ease_factor"`
 	NextDue      string  `json:"next_due"` // RFC3339
 	LastResult   int16   `json:"last_result"`
+	UpdatedAt    string  `json:"updated_at"` // RFC3339 — used to sort "wrong" mode
 }
 
 type StudyStats struct {

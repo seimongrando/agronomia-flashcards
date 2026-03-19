@@ -9,7 +9,7 @@
  */
 "use strict";
 
-var CACHE     = "agro-v5";
+var CACHE     = "agro-v6";
 var SYNC_TAG  = "agro-answer-queue";
 
 // Critical files that must be available for offline use.

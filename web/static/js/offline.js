@@ -294,6 +294,52 @@
     }
 
     /**
+     * loadBundle — reads all cards + reviews for a deck from IndexedDB and
+     * returns them in the same shape as GET /api/study/offline so that
+     * study.js can drive one unified buildQueue() for both online and offline
+     * sessions. Returns null when the deck has no cached cards.
+     */
+    function loadBundle(deckId) {
+        return idbGetAllByIndex("cards", "deck_id", deckId).then(function (cards) {
+            if (!cards || !cards.length) return null;
+            return Promise.all(cards.map(function (c) { return idbGet("reviews", c.id); }))
+                .then(function (reviewArr) {
+                    var reviews = {};
+                    reviewArr.forEach(function (rv) {
+                        if (rv) reviews[rv.card_id] = rv;
+                    });
+                    return { cards: cards, reviews: reviews };
+                });
+        });
+    }
+
+    /**
+     * saveBundle — persists a pre-fetched bundle (cards + reviews map) to
+     * IndexedDB without re-fetching from the network. Called by study.js
+     * after fetching the bundle online so the same data is immediately
+     * available for offline use on the next visit.
+     */
+    function saveBundle(deckId, bundle) {
+        return getDB().then(function (db) {
+            return new Promise(function (resolve, reject) {
+                var tx = db.transaction(["cards", "reviews", "deck_meta"], "readwrite");
+                tx.onerror    = function () { reject(tx.error); };
+                tx.oncomplete = resolve;
+
+                var cardStore   = tx.objectStore("cards");
+                var reviewStore = tx.objectStore("reviews");
+                var metaStore   = tx.objectStore("deck_meta");
+
+                (bundle.cards || []).forEach(function (c) { cardStore.put(c); });
+                Object.keys(bundle.reviews || {}).forEach(function (cardId) {
+                    reviewStore.put(Object.assign({ card_id: cardId }, bundle.reviews[cardId]));
+                });
+                metaStore.put({ deck_id: deckId, synced_at: new Date().toISOString() });
+            });
+        });
+    }
+
+    /**
      * nextCard — returns the next card to study from IDB for the given deck
      * and mode ("due", "random", "wrong"). Returns null when no card available.
      *
@@ -419,6 +465,8 @@
     window.offlineStudy = {
         syncDeck:      syncDeck,
         isDeckCached:  isDeckCached,
+        loadBundle:    loadBundle,
+        saveBundle:    saveBundle,
         nextCard:      nextCard,
         recordAnswer:  recordAnswer,
         pendingCount:  pendingCount,

@@ -35,18 +35,16 @@
     var progressTrack = document.getElementById("progress-track");
 
     /* ── State ─────────────────────────────────────────────────────────────── */
-    var currentCard   = null;
-    var flipped       = false;
-    var submitting    = false;
-    var remaining     = null;  // due_now for "due" mode
-    var totalCards    = null;  // total cards in deck (for progress bar + session cap)
-    var sessionCount  = 0;     // cards answered in this session
-    var sessionCorrect = 0;    // result = 2
-    var sessionHard    = 0;    // result = 1
-    var sessionWrong   = 0;    // result = 0
-    var activeTopic    = "";   // "" = all topics
-    var sessionSeenIDs = [];   // card IDs answered this session — excluded from all subsequent requests
-    var initialDue     = null; // due_now captured once at session start, used as the "due" mode total
+    var currentCard    = null;
+    var flipped        = false;
+    var submitting     = false;
+    var sessionCount   = 0;     // cards answered in this session
+    var sessionCorrect = 0;     // result = 2
+    var sessionHard    = 0;     // result = 1
+    var sessionWrong   = 0;     // result = 0
+    var sessionQueue   = [];    // ordered queue of cards; consumed via shift()
+    var sessionBundle  = null;  // { cards, reviews } kept to rebuild queue for next random round
+    var sessionTotal   = null;  // queue length fixed at session start — denominator for "Carta X de Y"
 
     // Session-expiry banner — shown at most once per study session when the JWT
     // expires mid-session; differs from the network-offline banner.
@@ -158,18 +156,10 @@
         function startStudy(user) {
             app.renderTopbar(user, { backHref: "/", noNav: true });
             renderDeckContext();
-            loadStats();
-            loadNext();
 
-            // Pre-sync deck cards to IndexedDB for offline use (fire-and-forget).
-            if (window.offlineStudy && navigator.onLine) {
-                offlineStudy.syncDeck(deckId).catch(function () { /* non-critical */ });
-            }
-
-            // Show offline banner if we started without a live session.
-            if (!user || !navigator.onLine) {
-                setOfflineBanner(true);
-            }
+            var isOffline = !user || !navigator.onLine;
+            if (isOffline) setOfflineBanner(true);
+            initSession(isOffline);
         }
 
         // Attempt to reach /api/me.  Returns null on both auth failure AND
@@ -364,26 +354,6 @@
             else if (result === 1) sessionHard++;
             else                   sessionWrong++;
 
-            if (mode === "due" && remaining !== null) {
-                remaining = Math.max(0, remaining - 1);
-            }
-
-            // "Due" mode: stop when the session count reaches the due count
-            // captured at session start. This acts as a safety net — the backend
-            // already excludes seen cards, but if extra cards slip through (e.g.
-            // due to a brief offline period), the cap prevents unbounded sessions.
-            if (mode === "due" && initialDue !== null && sessionCount >= initialDue) {
-                updateProgress();
-                showDone("Parabéns!", "Você revisou todas as cartas de hoje! Volte amanhã para continuar.", false);
-                return;
-            }
-
-            if (mode !== "due" && totalCards !== null && sessionCount >= totalCards) {
-                updateProgress();
-                showDone("Sessão concluída!", "Você revisou " + sessionCount +
-                    " carta" + (sessionCount !== 1 ? "s" : "") + " desta vez.", false);
-                return;
-            }
             updateProgress();
             loadNext();
         }
@@ -474,6 +444,195 @@
     }
 
     /* ════════════════════════════════════════════════════════════════════════
+       SESSION QUEUE  —  deterministic, in-memory card ordering
+       Built once at session start from the offline bundle; consumed via
+       sessionQueue.shift().  No network calls between cards.
+    ════════════════════════════════════════════════════════════════════════ */
+
+    // Returns true when a card is due today (mirrors offline.js isDue).
+    function isDue(review) {
+        if (!review || !review.next_due) return true;
+        var due   = new Date(review.next_due);
+        var today = new Date();
+        due.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        return due <= today;
+    }
+
+    // "YYYY-MM-DD" in local time — used to group cards by date for shuffle.
+    function localDateStr(d) {
+        return d.getFullYear() + "-" +
+               String(d.getMonth() + 1).padStart(2, "0") + "-" +
+               String(d.getDate()).padStart(2, "0");
+    }
+
+    // Fisher-Yates in-place shuffle; returns the same array.
+    function shuffle(arr) {
+        for (var i = arr.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+        }
+        return arr;
+    }
+
+    // Shuffles cards within consecutive same-key groups, preserving group order.
+    // Example: cards [A1, A2, B1, B2] → [A2, A1, B1, B2] (A and B shuffled internally).
+    function shuffleWithinGroups(sorted, getKey) {
+        var result = [];
+        var i = 0;
+        while (i < sorted.length) {
+            var key   = getKey(sorted[i]);
+            var group = [sorted[i++]];
+            while (i < sorted.length && getKey(sorted[i]) === key) group.push(sorted[i++]);
+            result = result.concat(shuffle(group));
+        }
+        return result;
+    }
+
+    /**
+     * buildQueue — constructs the ordered card array for the session.
+     * @param {Array}  cards   — all cards in the deck (from bundle)
+     * @param {Object} reviews — map of cardId → review state (from bundle)
+     * @param {string} mode    — "due" | "random" | "wrong"
+     * @returns {Array} ordered card objects to study
+     */
+    function buildQueue(cards, reviews, mode) {
+        if (!cards || !cards.length) return [];
+
+        if (mode === "random") {
+            return shuffle(cards.slice());
+        }
+
+        if (mode === "wrong") {
+            var sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+            var wrong = cards.filter(function (c) {
+                var rv = reviews[c.id];
+                if (!rv || rv.last_result !== 0) return false;
+                return new Date(rv.updated_at).getTime() >= sevenDaysAgo;
+            });
+            if (!wrong.length) {
+                // No recent wrong cards — fall back to due mode so the user
+                // always sees something when they click "Errei".
+                return buildQueue(cards, reviews, "due");
+            }
+            // Most-recently-wrong first; shuffle within same-timestamp ties.
+            wrong.sort(function (a, b) {
+                var ta = reviews[a.id] ? new Date(reviews[a.id].updated_at).getTime() : 0;
+                var tb = reviews[b.id] ? new Date(reviews[b.id].updated_at).getTime() : 0;
+                return tb - ta;
+            });
+            return shuffleWithinGroups(wrong, function (c) {
+                var rv = reviews[c.id];
+                return rv ? localDateStr(new Date(rv.updated_at)) : "";
+            });
+        }
+
+        // mode === "due" (default)
+        var due = cards.filter(function (c) { return isDue(reviews[c.id]); });
+        if (!due.length) return [];
+
+        // Never-reviewed cards (no entry) get epoch 0 → appear first.
+        due.sort(function (a, b) {
+            var da = reviews[a.id] ? new Date(reviews[a.id].next_due).getTime() : 0;
+            var db = reviews[b.id] ? new Date(reviews[b.id].next_due).getTime() : 0;
+            return da - db;
+        });
+        // Shuffle within cards that share the same calendar day so insertion
+        // order never leaks through.
+        return shuffleWithinGroups(due, function (c) {
+            var rv = reviews[c.id];
+            return rv ? localDateStr(new Date(rv.next_due)) : "never";
+        });
+    }
+
+    /**
+     * initSession — fetches the full deck bundle (online or from IDB),
+     * builds the session queue, and kicks off study.
+     * @param {boolean} isOffline — true = read from IndexedDB, false = fetch API
+     */
+    function initSession(isOffline) {
+        spinnerEl.classList.remove("hidden");
+        cardAreaEl.classList.add("hidden");
+        answerBar.classList.add("hidden");
+        doneEl.classList.add("hidden");
+
+        var bundlePromise;
+        if (isOffline) {
+            bundlePromise = (window.offlineStudy
+                ? offlineStudy.loadBundle(deckId).then(function (b) {
+                      if (!b) throw new Error("not cached");
+                      return b;
+                  })
+                : Promise.reject(new Error("no offline module")));
+        } else {
+            bundlePromise = api.get("/api/study/offline?deckId=" + encodeURIComponent(deckId))
+                .then(function (res) {
+                    if (!res.ok) throw new Error("fetch failed " + res.status);
+                    return res.json();
+                })
+                .then(function (bundle) {
+                    // Persist to IDB so this deck is available offline immediately.
+                    if (window.offlineStudy) {
+                        offlineStudy.saveBundle(deckId, bundle).catch(function () {});
+                    }
+                    return bundle;
+                });
+        }
+
+        bundlePromise
+            .then(function (bundle) {
+                sessionBundle = bundle;
+                var cards   = bundle.cards   || [];
+                var reviews = bundle.reviews || {};
+
+                sessionQueue = buildQueue(cards, reviews, mode);
+                sessionTotal = sessionQueue.length;
+
+                spinnerEl.classList.add("hidden");
+
+                if (!sessionQueue.length) {
+                    var emptyMsg = mode === "due"
+                        ? "Nenhuma carta pendente para hoje. Volte amanhã!"
+                        : mode === "wrong"
+                            ? "Nenhuma carta com erro recente. Continue assim!"
+                            : "Este deck não tem cartas.";
+                    showDone("Tudo em dia!", emptyMsg, false);
+                    return;
+                }
+
+                updateProgressBar();
+                loadNext();
+            })
+            .catch(function () {
+                if (!isOffline && window.offlineStudy) {
+                    // Network failed — check IDB for cached data.
+                    offlineStudy.isDeckCached(deckId)
+                        .then(function (cached) {
+                            if (cached) {
+                                setOfflineBanner(true);
+                                initSession(true);
+                            } else {
+                                spinnerEl.classList.add("hidden");
+                                showDone(
+                                    "Sem conexão",
+                                    "Você está offline e este deck ainda não foi sincronizado. " +
+                                    "Conecte-se à internet e abra o deck uma vez para ativar o modo offline.",
+                                    true
+                                );
+                            }
+                        })
+                        .catch(function () {
+                            spinnerEl.classList.add("hidden");
+                            showDone("Erro", "Não foi possível carregar as cartas.", true);
+                        });
+                } else {
+                    spinnerEl.classList.add("hidden");
+                    showDone("Erro", "Não foi possível carregar as cartas.", true);
+                }
+            });
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
        DECK CONTEXT LABEL
     ════════════════════════════════════════════════════════════════════════ */
     var MODE_LABELS = { due: "Revisão do dia", random: "Aleatório", wrong: "Errei recentemente" };
@@ -503,40 +662,24 @@
 
 
     /* ════════════════════════════════════════════════════════════════════════
-       STATS + PROGRESS
+       PROGRESS  —  driven by sessionTotal set once in initSession()
     ════════════════════════════════════════════════════════════════════════ */
-    function loadStats() {
-        api.get("/api/stats?deckId=" + deckId).then(function (res) {
-            if (!res.ok) return;
-            return res.json();
-        }).then(function (stats) {
-            if (!stats) return;
-            remaining  = stats.due_now;
-            totalCards = stats.total_cards || null;
-            // Capture the initial due count once (used as fixed total for "due" mode).
-            if (initialDue === null) initialDue = stats.due_now;
-            // Refresh display if a card is already showing
-            if (currentCard) updateCardPosition();
-            updateProgressBar();
-        }).catch(function () { /* offline — continue without stats */ });
-    }
 
     /* Sets the topbar centre to "Carta X de Y" — the card the student is NOW reading. */
     function updateCardPosition() {
-        var total = resolveTotal();
-        if (total === null || total === 0) {
+        var total = sessionTotal;
+        if (!total) {
             counterEl.classList.add("hidden");
             return;
         }
-        var current = sessionCount + 1;           // 1-based position of current card
-        counterEl.textContent = "Carta " + current + " de " + total;
+        counterEl.textContent = "Carta " + (sessionCount + 1) + " de " + total;
         counterEl.classList.remove("hidden");
     }
 
-    /* Updates only the thin progress bar (answered count / total). */
+    /* Updates the thin progress bar (answered count / total). */
     function updateProgressBar() {
-        var total = resolveTotal();
-        if (total === null || total === 0) {
+        var total = sessionTotal;
+        if (!total) {
             progressFill.style.width = "0%";
             progressLbl.textContent  = "";
             progressTrack.setAttribute("aria-valuenow", 0);
@@ -548,30 +691,20 @@
         progressLbl.textContent  = sessionCount + " respondida" + (sessionCount !== 1 ? "s" : "");
     }
 
-    /* Returns the session cap depending on mode. */
-    function resolveTotal() {
-        if (mode === "due") {
-            // Use the fixed initial due count captured at session start so that
-            // the "Carta X de Y" counter never grows even if extra cards appear.
-            return initialDue !== null ? initialDue : null;
-        }
-        return totalCards;
-    }
-
     /* Called after each answer to advance both displays. */
     function updateProgress() {
         updateProgressBar();
-        // topbar is refreshed in renderCard() when the next card appears
+        // topbar counter is refreshed in renderCard() when the next card appears
     }
 
     /* ════════════════════════════════════════════════════════════════════════
-       LOAD NEXT CARD
+       LOAD NEXT CARD  —  reads from the in-memory session queue; no network
     ════════════════════════════════════════════════════════════════════════ */
     function loadNext() {
-        flipped     = false;
-        submitting  = false;
-        currentCard = null;
-        isDragging  = false;
+        // Reset interaction state for the incoming card.
+        flipped    = false;
+        submitting = false;
+        isDragging = false;
         dragX = 0; dragY = 0;
 
         flashcardEl.classList.remove("is-flipped");
@@ -580,80 +713,30 @@
         setAnswerButtons(false);
         hideSwipeLabels();
 
-        spinnerEl.classList.remove("hidden");
         cardAreaEl.classList.add("hidden");
         answerBar.classList.add("hidden");
         doneEl.classList.add("hidden");
+        spinnerEl.classList.add("hidden");
         if (answerHelp) {
             answerHelp.classList.add("hidden");
             if (btnHelpToggle) btnHelpToggle.setAttribute("aria-expanded", "false");
         }
 
-        var nextUrl = "/api/study/next?deckId=" + deckId + "&mode=" + mode;
-        if (activeTopic) nextUrl += "&topic=" + encodeURIComponent(activeTopic);
-        // Always send already-seen IDs so the backend never repeats a card in any mode.
-        if (sessionSeenIDs.length > 0) {
-            nextUrl += "&exclude=" + sessionSeenIDs.join(",");
+        currentCard = sessionQueue.shift();
+
+        if (!currentCard) {
+            // Queue exhausted — session complete.
+            if (mode === "random") {
+                showRoundComplete();
+            } else if (mode === "due") {
+                showDone("Parabéns!", "Você revisou todas as cartas de hoje! Volte amanhã para continuar.", false);
+            } else {
+                showDone("Parabéns!", "Você revisou todas as cartas com erro recente!", false);
+            }
+            return;
         }
-        api.get(nextUrl)
-            .then(function (res) {
-                if (res.status === 204) {
-                    if (mode === "random" && sessionSeenIDs.length > 0) {
-                        // All cards in the deck have been shown — start a new round.
-                        sessionSeenIDs = [];
-                        showRoundComplete();
-                        return null;
-                    }
-                    var msg = mode === "due"
-                        ? "Você revisou todas as cartas de hoje! Volte amanhã para continuar."
-                        : "Nenhuma carta disponível neste modo.";
-                    showDone("Parabéns!", msg, false);
-                    return null;
-                }
-                if (!res.ok) throw new Error("load failed");
-                return res.json();
-            })
-            .then(function (card) {
-                if (!card) return;
-                // Track this card for the rest of the session (all modes).
-                sessionSeenIDs.push(card.id);
-                currentCard = card;
-                renderCard();
-            })
-            .catch(function () {
-                // Network error — try offline fallback via IndexedDB.
-                if (!window.offlineStudy) {
-                    showDone("Erro", "Não foi possível carregar a carta. Verifique a conexão.", true);
-                    return;
-                }
-                offlineStudy.isDeckCached(deckId).then(function (cached) {
-                    if (!cached) {
-                        showDone(
-                            "Sem conexão",
-                            "Você está offline e este deck ainda não foi sincronizado. " +
-                            "Conecte-se para estudar pela primeira vez.",
-                            true
-                        );
-                        return;
-                    }
-                    setOfflineBanner(true);
-                    // Pass sessionSeenIDs so offline.js never repeats a card seen
-                    // earlier in the session, including in random mode.
-                    return offlineStudy.nextCard(deckId, mode, activeTopic, sessionSeenIDs).then(function (card) {
-                        if (!card) {
-                            showDone("Parabéns!", "Nenhuma carta pendente offline.", false);
-                            return;
-                        }
-                        // Track offline-fetched cards the same as online ones so
-                        // they are excluded from future requests when online again.
-                        sessionSeenIDs.push(card.id);
-                        currentCard = card;
-                        renderCard();
-                    });
-                }).catch(function () {
-                    showDone("Erro", "Não foi possível carregar a carta.", true);
-                });
-            });
+
+        renderCard();
     }
 
     /* ════════════════════════════════════════════════════════════════════════
@@ -702,7 +785,7 @@
        DONE / ERROR STATE
     ════════════════════════════════════════════════════════════════════════ */
     // Called when random mode exhausts all cards in the deck (one full round).
-    // Shows a brief "round complete" toast and immediately starts the next round.
+    // Rebuilds a freshly shuffled queue and lets the user start the next round.
     function showRoundComplete() {
         spinnerEl.classList.add("hidden");
         cardAreaEl.classList.add("hidden");
@@ -717,7 +800,7 @@
             '</svg>' +
             '<h2 style="font-size:1.2rem;font-weight:700;margin:0 0 .4rem">Rodada concluída!</h2>' +
             '<p style="color:var(--text-secondary);margin:0 0 1.5rem;font-size:.95rem">' +
-            'Você viu todas as cartas do deck. Começando nova rodada…' +
+            'Você viu todas as cartas do deck. Começando nova rodada\u2026' +
             '</p>' +
             '<button id="btn-next-round" class="btn btn-primary">Próxima rodada</button>' +
             '</div>';
@@ -726,6 +809,21 @@
         var btnNextRound = document.getElementById("btn-next-round");
         if (btnNextRound) {
             btnNextRound.addEventListener("click", function () {
+                // Rebuild a fresh shuffled queue for the new round using the
+                // same bundle — no network call needed.
+                if (sessionBundle) {
+                    sessionQueue = buildQueue(
+                        sessionBundle.cards   || [],
+                        sessionBundle.reviews || {},
+                        "random"
+                    );
+                    sessionTotal  = sessionQueue.length;
+                    sessionCount  = 0;
+                    sessionCorrect = 0;
+                    sessionHard   = 0;
+                    sessionWrong  = 0;
+                    updateProgressBar();
+                }
                 doneEl.classList.add("hidden");
                 loadNext();
             });

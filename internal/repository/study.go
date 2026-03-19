@@ -622,7 +622,7 @@ func (r *StudyRepo) GetOfflineBundle(ctx context.Context, userID, deckID string)
 	// Fetch the user's reviews for cards in this deck.
 	const rvQ = `
 		SELECT rv.card_id, rv.streak, rv.interval_days, rv.ease_factor,
-		       rv.next_due, rv.last_result
+		       rv.next_due, rv.last_result, rv.updated_at
 		FROM reviews rv
 		JOIN cards c ON c.id = rv.card_id
 		WHERE rv.user_id = $1 AND c.deck_id = $2`
@@ -636,13 +636,16 @@ func (r *StudyRepo) GetOfflineBundle(ctx context.Context, userID, deckID string)
 	for rrows.Next() {
 		var cardID string
 		var rv model.OfflineReview
-		var nextDue sql.NullTime
+		var nextDue, updatedAt sql.NullTime
 		if err := rrows.Scan(&cardID, &rv.Streak, &rv.IntervalDays, &rv.EaseFactor,
-			&nextDue, &rv.LastResult); err != nil {
+			&nextDue, &rv.LastResult, &updatedAt); err != nil {
 			return model.OfflineBundle{}, fmt.Errorf("offline bundle review scan: %w", err)
 		}
 		if nextDue.Valid {
 			rv.NextDue = nextDue.Time.UTC().Format("2006-01-02T15:04:05Z")
+		}
+		if updatedAt.Valid {
+			rv.UpdatedAt = updatedAt.Time.UTC().Format("2006-01-02T15:04:05Z")
 		}
 		reviews[cardID] = rv
 	}
