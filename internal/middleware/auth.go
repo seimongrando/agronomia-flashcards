@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 
@@ -20,9 +21,27 @@ type jwtClaims struct {
 	Roles []string `json:"roles"`
 }
 
+// SessionConfig holds the parameters required by RequireAuth for both
+// token validation and transparent sliding-session renewal.
+type SessionConfig struct {
+	// Secret is the HMAC-SHA256 signing key (same value used at login).
+	Secret []byte
+	// Expiry is the total lifetime of a newly issued token (e.g. 168h).
+	Expiry time.Duration
+	// CookieSecure sets the Secure flag on renewed session cookies.
+	// Should be true in production (HTTPS) and false for local HTTP dev.
+	CookieSecure bool
+}
+
 // RequireAuth validates the access_token cookie and injects AuthInfo into the
 // request context. Returns 401 with no implementation details exposed.
-func RequireAuth(jwtSecret []byte) Middleware {
+//
+// Sliding-session renewal: if the token's remaining lifetime is less than half
+// of the configured Expiry, a fresh token is issued silently as a Set-Cookie
+// header on the same response. This keeps active users permanently logged in
+// without requiring any client-side logic, and is especially important for
+// PWA/offline scenarios where the user may be away from the network for days.
+func RequireAuth(cfg SessionConfig) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie("access_token")
@@ -35,7 +54,7 @@ func RequireAuth(jwtSecret []byte) Middleware {
 				if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 					return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 				}
-				return jwtSecret, nil
+				return cfg.Secret, nil
 			})
 			if err != nil || !token.Valid {
 				writeError(w, http.StatusUnauthorized, "Unauthorized")
@@ -46,6 +65,35 @@ func RequireAuth(jwtSecret []byte) Middleware {
 			if !ok {
 				writeError(w, http.StatusUnauthorized, "Unauthorized")
 				return
+			}
+
+			// Sliding renewal: transparently issue a fresh token when the
+			// current one has used more than half its lifetime. The new token
+			// carries identical claims so no re-login is ever required.
+			if cfg.Expiry > 0 && claims.ExpiresAt != nil {
+				remaining := time.Until(claims.ExpiresAt.Time)
+				if remaining < cfg.Expiry/2 {
+					now := time.Now()
+					renewed := jwtClaims{
+						RegisteredClaims: jwt.RegisteredClaims{
+							Subject:   claims.Subject,
+							IssuedAt:  jwt.NewNumericDate(now),
+							ExpiresAt: jwt.NewNumericDate(now.Add(cfg.Expiry)),
+						},
+						Roles: claims.Roles,
+					}
+					if signed, signErr := jwt.NewWithClaims(jwt.SigningMethodHS256, renewed).SignedString(cfg.Secret); signErr == nil {
+						http.SetCookie(w, &http.Cookie{
+							Name:     "access_token",
+							Value:    signed,
+							Path:     "/",
+							MaxAge:   int(cfg.Expiry.Seconds()),
+							HttpOnly: true,
+							Secure:   cfg.CookieSecure,
+							SameSite: http.SameSiteLaxMode,
+						})
+					}
+				}
 			}
 
 			info := model.AuthInfo{

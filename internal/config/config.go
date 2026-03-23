@@ -88,7 +88,7 @@ func Load() *Config {
 		GoogleClientSecret: requireEnv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURL:  requireEnv("GOOGLE_REDIRECT_URL"),
 		JWTSecret:          requireEnv("JWT_SECRET"),
-		JWTExpiry:          parseDuration(getEnv("JWT_EXPIRY", "24h")),
+		JWTExpiry:          parseDuration(getEnv("JWT_EXPIRY", "168h")), // 7 days default; override with JWT_EXPIRY env
 		AdminEmails:        parseEmailSet(getEnv("ADMIN_EMAILS", "")),
 		CookieSecure:       parseCookieSecure(getEnv("COOKIE_SECURE", ""), getEnv("ENVIRONMENT", "development")),
 		TrustedProxy:       parseTrustedProxy(getEnv("TRUSTED_PROXY", ""), getEnv("ENVIRONMENT", "development")),

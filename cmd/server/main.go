@@ -92,11 +92,17 @@ func main() {
 	pushH := handler.NewPushHandler(pushSvc)
 
 	// --- Access-level helpers (RBAC) ---
-	jwtSecret := []byte(cfg.JWTSecret)
-	authOnly := middleware.RequireAuth(jwtSecret)
-	contentMgmt := middleware.Chain(middleware.RequireAuth(jwtSecret), middleware.RequireRole("professor", "admin"))
-	adminOnly := middleware.Chain(middleware.RequireAuth(jwtSecret), middleware.RequireRole("admin"))
-	staffOnly := middleware.Chain(middleware.RequireAuth(jwtSecret), middleware.RequireRole("professor", "admin"))
+	// sessionCfg is shared across all protected routes so that the sliding-
+	// session renewal logic is consistent regardless of the required role.
+	sessionCfg := middleware.SessionConfig{
+		Secret:       []byte(cfg.JWTSecret),
+		Expiry:       cfg.JWTExpiry,
+		CookieSecure: cfg.CookieSecure,
+	}
+	authOnly := middleware.RequireAuth(sessionCfg)
+	contentMgmt := middleware.Chain(middleware.RequireAuth(sessionCfg), middleware.RequireRole("professor", "admin"))
+	adminOnly := middleware.Chain(middleware.RequireAuth(sessionCfg), middleware.RequireRole("admin"))
+	staffOnly := middleware.Chain(middleware.RequireAuth(sessionCfg), middleware.RequireRole("professor", "admin"))
 
 	mux := http.NewServeMux()
 
